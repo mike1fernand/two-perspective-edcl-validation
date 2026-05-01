@@ -1,0 +1,47 @@
+{
+  "validation_stage": "Tier-A1 late-only",
+  "status": "mechanism_activation_not_decisive_resolution",
+  "data": [
+    "DESI DR2 BAO",
+    "PantheonPlus",
+    "local H0_obs"
+  ],
+  "observable_definition": {
+    "H0_obs": "H0_theory * (1 + delta0)",
+    "delta0": "alpha_R * f_norm",
+    "f_norm": 0.7542
+  },
+  "current_paper_values": {
+    "alpha_R_mean": 0.0826,
+    "alpha_R_sigma": 0.0408,
+    "alpha_R_mean_over_sigma": 2.0245,
+    "delta0_mean": 0.0623,
+    "delta0_sigma": 0.0308,
+    "H0_theory_mean_km_s_Mpc": 68.80,
+    "H0_theory_sigma_km_s_Mpc": 1.85,
+    "H0_obs_mean_km_s_Mpc": 73.04,
+    "H0_obs_sigma_km_s_Mpc": 0.95,
+    "lcdm_best_chi2": 1417.2453,
+    "edcl_best_chi2": 1416.1826,
+    "delta_chi2_vs_lcdm": -1.0627,
+    "delta_AIC_one_extra_parameter": 0.9373,
+    "delta_BIC_approx_N_1715": 6.3845,
+    "BIC_note": "Approximate diagnostic only; exact BIC requires an explicitly defined effective data count."
+  },
+  "no_H0_collapse": {
+    "alpha_R_mean": 0.0147,
+    "alpha_R_sigma": 0.0142,
+    "interpretation": "alpha_R collapses toward zero when the local H0_obs driver is removed."
+  },
+  "claim_discipline": {
+    "allowed_current_wording": "Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.",
+    "not_allowed_as_current_Tier_A1_claim": "EDCL decisively resolves the Hubble tension.",
+    "next_required_validations": [
+      "exact per-likelihood chi2 decomposition",
+      "likelihood ablations",
+      "kernel/prior/local-anchor robustness scans",
+      "fair baselines",
+      "Tier-A2 Planck validation"
+    ]
+  }
+}
