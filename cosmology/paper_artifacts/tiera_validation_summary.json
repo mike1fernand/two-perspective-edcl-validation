@@ -1,70 +1,41 @@
 {
   "validation_date": "2025-12-21",
-  "status": "CRITICAL_BUG_FIXED",
+  "status": "historical_likelihood_fix_summary_superseded_by_final_validation_summary",
+  "canonical_current_result_card": "cosmology/results/tierA1_hubble_result_card.json",
+  "current_summary": "This file records the historical H0_obs likelihood-fix validation stage. The canonical current Tier-A1 values are in cosmology/paper_artifacts/final_validation_summary.json and cosmology/results/tierA1_hubble_result_card.json.",
   "bug_description": {
-    "issue": "H0.riess2020 likelihood compared input H0 parameter instead of EDCL-modified H(z=0)",
-    "consequence": "EDCL modification was invisible to likelihood, so alpha_R -> 0",
-    "fix": "Custom likelihood that compares H0*(1+delta0) to Riess measurement"
+    "issue": "The original H0.riess2020 likelihood compared the sampled theory-frame H0 parameter instead of the EDCL observed-frame H0_obs quantity.",
+    "consequence": "The EDCL calibration-drift channel was not tested by that likelihood setup.",
+    "fix": "Use a custom likelihood that compares H0_obs = H0_theory * (1 + delta0) to the local H0 measurement."
   },
-  "results_with_fix": {
+  "historical_results_with_fix": {
+    "note": "These values came from an earlier fixed-likelihood validation stage and should not be quoted as the current manuscript result unless reproduced in the current Tier-A1 result card.",
     "LCDM": {
-      "H0": "69.11 \u00b1 0.30",
+      "H0": "69.11 +/- 0.30",
       "chi2_best": 1427.1
     },
-    "EDCL_broken": {
-      "H0_theory": "68.90 \u00b1 0.46",
-      "alpha_R": "0.006 \u00b1 0.006",
-      "H0_obs": "68.90 \u00b1 0.46",
-      "chi2_best": 1427.12,
-      "delta_chi2_vs_LCDM": 0.02
-    },
     "EDCL_fixed": {
-      "H0_theory": "68.88 \u00b1 0.37",
-      "alpha_R": "0.081 \u00b1 0.021",
-      "H0_obs": "73.07 \u00b1 1.02",
+      "H0_theory": "68.88 +/- 0.37",
+      "alpha_R": "0.081 +/- 0.021",
+      "H0_obs": "73.07 +/- 1.02",
       "chi2_best": 1416.38,
       "delta_chi2_vs_LCDM": -10.73
     },
     "EDCL_fixed_no_H0": {
-      "H0_theory": "68.35 \u00b1 0.55",
-      "alpha_R": "0.013 \u00b1 0.012",
-      "alpha_R_95_upper": 0.0415,
-      "collapse_ratio": 0.16,
-      "note": "alpha_R drops 6x when H0 tension removed"
+      "H0_theory": "68.35 +/- 0.55",
+      "alpha_R": "0.013 +/- 0.012",
+      "collapse_ratio": 0.16
     }
   },
-  "validation_checks": {
-    "activation": {
-      "test": "alpha_R significantly non-zero with H0 prior",
-      "result": "PASS",
-      "value": "alpha_R = 0.081 \u00b1 0.021, lower 68% bound > 0.02"
-    },
-    "collapse": {
-      "test": "alpha_R collapses without H0 prior",
-      "result": "PASS",
-      "value": "alpha_R drops from 0.080 to 0.013 (ratio 0.16)"
-    },
-    "H0_match": {
-      "test": "H0_obs matches Riess measurement",
-      "result": "PASS",
-      "value": "H0_obs = 73.07 \u00b1 1.02 vs Riess = 73.04 \u00b1 1.04"
-    },
-    "chi2_improvement": {
-      "test": "EDCL improves chi2 vs LCDM",
-      "result": "PASS",
-      "value": "\u0394\u03c7\u00b2 = -10.73"
-    }
-  },
-  "files_changed": [
-    "cosmology/likelihoods/__init__.py (new)",
-    "cosmology/likelihoods/edcl_H0.py (new)",
-    "cosmology/likelihoods/H0_edcl_func.py (new)",
-    "cosmology/cobaya/edcl_cosmo_lateonly_FIXED.yaml.in (new)",
-    "cosmology/cobaya/edcl_cosmo_lateonly_no_sh0es_FIXED.yaml.in (new)",
-    "cosmology/docs/H0_LIKELIHOOD_FIX.md (new)"
-  ],
-  "referee_assessment": {
-    "before_fix": "Would REJECT - H0 likelihood bug makes Hubble tension claim untestable",
-    "after_fix": "ACCEPTABLE - Proper validation of EDCL resolving H0 tension"
+  "current_claim_discipline": {
+    "allowed_current_wording": "Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.",
+    "not_allowed_as_current_Tier_A1_claim": "EDCL decisively resolves the Hubble tension.",
+    "next_required_validations": [
+      "exact per-likelihood chi2 decomposition",
+      "likelihood ablations",
+      "kernel/prior/local-anchor robustness scans",
+      "fair baselines",
+      "Tier-A2 Planck validation"
+    ]
   }
 }
