@@ -55,7 +55,7 @@ This technical correction is central and should be preserved.
 
 | Test | Status | Interpretation |
 |---|---|---|
-| Custom likelihood applies local H0 to `H0_obs` | validated by code and regression test | Required for a meaningful EDCL Hubble test |
+| Custom likelihood applies local H0 to `H0_obs` | validated by code review; lightweight regression test still to add | Required for a meaningful EDCL Hubble test |
 | Activation with local H0 included | present | `alpha_R` is about `2.0σ` by mean/std |
 | Collapse without local H0 | present | no-H0 run gives `alpha_R = 0.0147 ± 0.0142` |
 | Observed-frame H0 match | present | `H0_obs = 73.04 ± 0.95` km/s/Mpc |
@@ -95,7 +95,6 @@ python COLAB_TIER_A_VALIDATION.py --profile referee
 bash RUN_TIER_A_VALIDATION.sh
 python cosmology/scripts/analyze_chains.py --workdir <workdir> --profile referee
 python cosmology/scripts/validate_tiera1_lateonly_results.py --workdir <workdir> --profile referee
-python tests/test_h0_obs_likelihood.py
 ```
 
 ## Required artifacts
@@ -114,6 +113,7 @@ See `docs/TIER_A_ARTIFACT_MANIFEST.md`. At minimum, a referee-facing Tier-A rele
 
 1. Publish or locate Tier-A chain/workdir artifacts.
 2. Extract exact per-likelihood chi2 components.
-3. Run likelihood ablations.
-4. Run kernel/prior/local-anchor robustness scans.
-5. Run Planck distance-prior preflight and then full Tier-A2.
+3. Add the lightweight `H0_obs` likelihood regression test locally or in a follow-up commit.
+4. Run likelihood ablations.
+5. Run kernel/prior/local-anchor robustness scans.
+6. Run Planck distance-prior preflight and then full Tier-A2.
