@@ -1,134 +1,75 @@
-# EDCL H0 Likelihood Fix
+# EDCL H0_obs Likelihood Fix
 
-## The Problem
+## Purpose
 
-The original Tier-A validation had a critical bug that prevented it from testing the Hubble tension claim.
+This document records the technical fix that makes the Tier-A Hubble validation test the TP/EDCL mechanism correctly.
 
-### What the paper claims:
-> "EDCL resolves the Hubble tension with H₀ᵒᵇˢ = H₀ᵗʰᵉᵒʳʸ × (1 + δ₀) matching local measurements"
+The local Hubble anchor must be applied to the observed-frame quantity
 
-### What the original code did:
-- `H0.riess2020` likelihood compared the **input parameter** H₀ to 73.04
-- The EDCL modification H(z=0) was computed by CLASS but **never used** by the likelihood
-- Result: EDCL could not help with the tension, so α_R → 0
-
-### Proof of the bug:
-```
-With EDCL enabled and α_R = 0.118:
-  CLASS input:  H₀ = 67.74 km/s/Mpc
-  CLASS output: H(z=0) = 73.77 km/s/Mpc  ← Matches Riess!
-  
-But the likelihood sees: H₀_input = 67.74
-And computes: χ² = ((67.74 - 73.04) / 1.04)² = 24  ← Huge penalty!
+```text
+H0_obs = H0_theory * (1 + delta0)
 ```
 
-## The Fix
+not directly to the theory-frame `H0` sampled by the cosmology engine.
 
-Replace the standard H0 likelihood with a custom one that accounts for EDCL calibration drift.
+## Problem fixed
 
-### The correct equation:
-```
-H₀ᵒᵇˢ = H₀ᵗʰᵉᵒʳʸ × (1 + δ₀)
+The standard `H0.riess2020` likelihood compares the sampled input `H0` directly to the local-Hubble measurement. That is not the EDCL observable. In TP/EDCL the calibration drift changes the observed quantity through
 
-where:
-  δ₀ = α_R × f_norm
-  f_norm = 0.7542 (mean-field normalization factor)
-```
-
-### Implementation:
-
-In Cobaya YAML, replace:
-```yaml
-# BROKEN:
-likelihood:
-  H0.riess2020: null
+```text
+delta0 = alpha_R * f_norm
+f_norm = 0.7542
+H0_obs = H0 * (1 + delta0)
 ```
 
-With:
-```yaml
-# FIXED:
-likelihood:
-  H0_edcl:
-    external: "lambda H0, alpha_R: -0.5 * ((H0 * (1.0 + alpha_R * 0.7542) - 73.04) / 1.04) ** 2"
+A standard local-Hubble likelihood can therefore incorrectly penalize a sample whose theory-frame `H0` is lower but whose EDCL observed-frame `H0_obs` is near the local anchor.
+
+## Correct likelihood
+
+For the Riess et al. local anchor used in Tier-A1:
+
+```text
+chi2_H0 = ((H0 * (1 + alpha_R * 0.7542) - 73.04) / 1.04)^2
+logp = -0.5 * chi2_H0
 ```
 
-## Validation Results
+The code implementation may write this equivalently as
 
-### With the fix:
-
-| Quantity | ΛCDM | EDCL-Broken | EDCL-Fixed |
-|----------|------|-------------|------------|
-| H₀ (theory) | 69.1 ± 0.3 | 68.9 ± 0.5 | 68.9 ± 0.4 |
-| α_R | N/A | 0.006 ± 0.006 | **0.081 ± 0.021** |
-| H₀ (observed) | 69.1 ± 0.3 | 68.9 ± 0.5 | **73.1 ± 1.0** |
-| Best χ² | 1427.1 | 1427.1 | **1416.4** |
-| Δχ² vs ΛCDM | 0 | 0 | **−10.7** |
-
-### Collapse test (no H0 prior):
-- With H0 prior: α_R = 0.080 ± 0.021
-- Without H0 prior: α_R = 0.013 ± 0.012
-- Ratio: 0.16 (6× reduction when H0 tension removed)
-
-This confirms that EDCL is activated specifically to resolve the H0 tension.
-
-## Files Changed
-
-### New files:
-1. `cosmology/likelihoods/__init__.py` - Package init
-2. `cosmology/likelihoods/edcl_H0.py` - Custom likelihood class
-3. `cosmology/likelihoods/H0_edcl_func.py` - Standalone function version
-4. `cosmology/cobaya/edcl_cosmo_lateonly_FIXED.yaml.in` - Template with fix
-
-### Required changes to existing YAMLs:
-
-**Before (BROKEN):**
-```yaml
-likelihood:
-  bao.desi_dr2.desi_bao_all: null
-  sn.pantheonplus: null
-  H0.riess2020: null  # ← PROBLEM: compares input H0, not observed H0
+```text
+delta0 = alpha_R * 12 * kappa_tick * f_norm
 ```
 
-**After (FIXED):**
-```yaml
-likelihood:
-  bao.desi_dr2.desi_bao_all: null
-  sn.pantheonplus: null
-  H0_edcl:
-    external: "lambda H0, alpha_R: -0.5 * ((H0 * (1.0 + alpha_R * 0.7542) - 73.04) / 1.04) ** 2"
+with `kappa_tick = 1/12`, so that `12 * kappa_tick = 1` and `delta0 = alpha_R * f_norm`.
 
-params:
-  # Add derived parameters for transparency
-  H0_obs:
-    derived: 'lambda H0, alpha_R: H0 * (1.0 + alpha_R * 0.7542)'
-    latex: H_0^{\rm obs}
-  delta0:
-    derived: 'lambda alpha_R: alpha_R * 0.7542'
-    latex: \delta_0
-```
+## Regression test
 
-## Referee Impact
+Add and run:
 
-A PRD referee would have rejected the original validation because:
-
-> *"The authors claim the EDCL model resolves the Hubble tension (Section 5), but the MCMC validation uses a likelihood setup where the H₀ measurement is compared to the input H₀ parameter, not the physically observable H(z=0) after calibration drift. This renders the quoted Δχ² meaningless."*
-
-With the fix, the validation now:
-1. ✅ Correctly compares observed H₀ to local measurements
-2. ✅ Shows α_R is significantly non-zero when H₀ tension exists
-3. ✅ Shows α_R collapses when H₀ tension is removed
-4. ✅ Demonstrates Δχ² ≈ −11 improvement over ΛCDM
-
-## Usage
-
-### Quick test:
 ```bash
-export COBAYA_PACKAGES_PATH=/path/to/cobaya_packages
-cobaya-run cosmology/cobaya/edcl_lateonly_FIXED_test.yaml
+python tests/test_h0_obs_likelihood.py
 ```
 
-### Full validation:
-```bash
-# Run all three: LCDM, EDCL+H0, EDCL-noH0
-python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile referee
-```
+The test checks:
+
+1. `H0_obs = H0 * (1 + alpha_R * f_norm)`.
+2. `alpha_R = 0` recovers `H0_obs = H0`.
+3. The standard theory-frame H0 penalty is large for an EDCL-corrected point.
+4. The custom observed-frame H0 penalty is small for the same point.
+5. `f_norm = 0.7542` is applied once, not twice.
+
+## Current Tier-A1 status
+
+Current paper values:
+
+| Quantity | Value |
+|---|---:|
+| `alpha_R` | `0.0826 ± 0.0408` |
+| `delta0` | `0.0623 ± 0.0308` |
+| `H0_obs` | `73.04 ± 0.95` km/s/Mpc |
+| Delta chi2 vs LCDM | `-1.0627` |
+
+This validates a working `H0_obs` calibration-drift mechanism in Tier-A1 late-only data. It should not be described as a decisive full Hubble-tension resolution until exact decomposition, robustness, fair-baseline, and Tier-A2/Planck validations are complete.
+
+## Historical note
+
+Older validation notes reported stronger fixed-likelihood improvements or projected CMB-dependent improvements. Keep those clearly labeled as historical tests or projections unless reproduced by the current canonical Tier-A result card.
