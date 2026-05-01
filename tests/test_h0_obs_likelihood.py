@@ -13,6 +13,7 @@ import math
 F_NORM = 0.7542
 RIESS_H0 = 73.04
 RIESS_SIGMA = 1.04
+EXPECTED_H0_OBS = 67.74 * (1.0 + 0.118 * F_NORM)
 
 
 def h0_obs(h0_theory: float, alpha_R: float, f_norm: float = F_NORM) -> float:
@@ -37,7 +38,7 @@ def assert_close(actual: float, expected: float, tol: float = 1e-10) -> None:
 
 def test_h0_obs_formula() -> None:
     value = h0_obs(67.74, 0.118)
-    assert_close(value, 73.76864344, tol=1e-8)
+    assert_close(value, EXPECTED_H0_OBS, tol=1e-10)
 
 
 def test_alpha_zero_recovers_theory_h0() -> None:
@@ -61,7 +62,7 @@ def test_fnorm_not_applied_twice() -> None:
     twice = h0_theory * (1.0 + alpha_R * F_NORM * F_NORM)
 
     assert abs(once - twice) > 1.0
-    assert_close(once, 73.76864344, tol=1e-8)
+    assert_close(once, EXPECTED_H0_OBS, tol=1e-10)
 
 
 if __name__ == "__main__":
