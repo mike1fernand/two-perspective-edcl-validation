@@ -2,15 +2,17 @@
 
 This file is the compact reproduction record for the Tier-A1 late-only Hubble validation outputs used by the TP/EDCL paper and repo.
 
-It is intentionally a documentation file, not a storage location for heavy chains or timestamped workdirs. Heavy run outputs should be published as GitHub Release assets, not committed into normal git history.
+It is intentionally a documentation file, not a storage location for heavy chains, patched CLASS builds, Cobaya packages, or timestamped workdirs. Heavy run outputs should be published as GitHub Release assets, not committed into normal git history.
 
 ## Scope
 
 This file covers the current Tier-A1 late-only validation:
 
-- LCDM late-only baseline
-- EDCL with local observed-frame `H0_obs` likelihood
-- EDCL no-H0 collapse control
+```text
+LCDM late-only baseline
+EDCL with local observed-frame H0_obs likelihood
+EDCL no-H0 collapse control
+```
 
 Current claim boundary:
 
@@ -36,12 +38,14 @@ cosmology/results/tierA1_chain_component_audit.json
 
 The chain audit records:
 
-- manifest-matching chain hashes;
-- weighted posterior values;
-- EDCL formula checks for `delta0 = alpha_R * 0.7542`;
-- EDCL formula checks for `H0_obs = H0 * (1 + delta0)`;
-- best-fit component accounting from chain columns;
-- BBN consistency contrast as an external check, not as a fitted likelihood.
+```text
+manifest-matching chain hashes
+weighted posterior values
+EDCL formula checks for delta0 = alpha_R * 0.7542
+EDCL formula checks for H0_obs = H0 * (1 + delta0)
+best-fit component accounting from chain columns
+BBN consistency contrast as an external check, not as a fitted likelihood
+```
 
 ## Chain files used for the current audit
 
@@ -81,9 +85,43 @@ delta0 = alpha_R * 0.7542
 chi2_H0_obs = ((H0_obs - 73.04) / 1.04)^2
 ```
 
+The canonical helper function for this formula is:
+
+```text
+cosmology/likelihoods/H0_edcl_func.py
+```
+
 For EDCL+H0_obs runs, the local anchor must be applied to `H0_obs`, not directly to the theory-frame `H0`.
 
 For the no-H0 collapse run, the local-Hubble likelihood is removed. The no-H0 run is a collapse/control test, not the primary local-H0 fit.
+
+## H0-likelihood invariants
+
+The corrected Tier-A1 path enforces these configuration rules:
+
+```text
+LCDM + local H0:
+  direct H0.riess2020 is allowed.
+
+EDCL + local H0:
+  H0_edcl is required.
+  direct H0.riess2020 is forbidden.
+  derived H0_obs is required.
+  derived delta0 is required.
+
+EDCL no-H0:
+  H0_edcl is forbidden.
+  direct H0.riess2020 is forbidden.
+```
+
+The relevant guard and validator are:
+
+```text
+cosmology/scripts/check_no_doublecount_sh0es.py
+cosmology/scripts/validate_tiera1_lateonly_results.py
+```
+
+A stale EDCL YAML using direct `H0.riess2020` should now fail before MCMC interpretation.
 
 ## Current verified headline values
 
@@ -127,45 +165,94 @@ python -m pip install -r requirements.txt
 
 Important NumPy note:
 
-- At least one lint-pack run failed because the environment's NumPy did not expose `np.trapezoid`.
-- A later lint-pack run passed.
-- To avoid this environment-dependent failure, use a NumPy version that supports `np.trapezoid`, or modify the Tier-B scripts to use a compatibility fallback such as `np.trapz` when `np.trapezoid` is unavailable.
+```text
+At least one lint-pack run failed because the environment's NumPy did not expose np.trapezoid.
+A later lint-pack run passed.
+To avoid this environment-dependent failure, use a NumPy version that supports np.trapezoid, or modify Tier-B scripts to use a compatibility fallback such as np.trapz when np.trapezoid is unavailable.
+```
 
-### 2. Run Tier-A locally
+### 2. Run Tier-A1 setup-only first
 
-The local runner is:
+Use a Linux/Colab/WSL-style environment. The canonical runner is:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py \
+  --profile iterate \
+  --skip-mcmc \
+  --no-validate
+```
+
+This setup-only command should:
+
+```text
+clone upstream CLASS
+prefer CLASS tag v3.3.4 when available
+apply cosmology/patches/class_edcl.patch
+build CLASS/classy
+run EDCL smoke/preflight checks
+render Tier-A1 YAMLs into <workdir>/yamls/
+check H0-likelihood invariants before MCMC
+run Cobaya install/test initialization
+write manifest.json
+create bundle_edcl_tiera1.zip
+```
+
+Do not run full MCMC until the setup-only path succeeds.
+
+### 3. Run Tier-A1 iterate MCMC
+
+After setup-only passes:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate
+```
+
+This is the first end-to-end run to inspect. It is for iteration/debugging, not the final referee-grade run.
+
+### 4. Run Tier-A1 referee profile
+
+After the iterate run is clean and interpretable:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile referee
+```
+
+The referee profile is stricter and may take substantially longer.
+
+### 5. Shell wrapper
+
+The root shell script delegates to the same Python runner:
 
 ```bash
 bash RUN_TIER_A_VALIDATION.sh
 ```
 
-or with an explicit CLASS path:
+To use an existing EDCL-patched CLASS build:
 
 ```bash
 bash RUN_TIER_A_VALIDATION.sh /path/to/class_public
 ```
 
-Required environment variables:
-
-```bash
-export CLASS_PATH=/path/to/class_public
-export COBAYA_PACKAGES_PATH=/path/to/cobaya_packages
-export OUTPUT_DIR=./chains
-```
-
-Required external packages/tools:
+Useful wrapper environment variables:
 
 ```text
-Python 3.8+
-Cobaya
-GetDist, optional for analysis
-CLASS with the EDCL patch compiled
-Cobaya data packages for DESI DR2 BAO and PantheonPlus
+PROFILE=iterate|smoke|referee
+WORK_DIR=/path/to/workdir
+OUTPUT_DIR=/path/to/workdir   # legacy alias if WORK_DIR is unset
+CLASS_PATH=/path/to/class_public
+SKIP_APT=1
+SKIP_PIP=1
+SKIP_COBAYA_INSTALL=1
+SKIP_MCMC=1
+NO_VALIDATE=1
+MCMC_MAX_SAMPLES=N
 ```
 
-### EDCL-patched CLASS runtime requirement
+`COBAYA_PACKAGES_PATH` is not required by the corrected wrapper. The Python runner uses a workdir-local Cobaya packages directory.
 
-A fresh clone of this repository is not, by itself, enough to regenerate the Tier-A MCMC chains from scratch until the EDCL-patched CLASS/classy runtime is built.
+## EDCL-patched CLASS runtime requirement
+
+A fresh clone of this repository is not, by itself, enough to regenerate the Tier-A1 MCMC chains from scratch until the EDCL-patched CLASS/classy runtime is built.
 
 The EDCL CLASS patch is included in this repo:
 
@@ -173,9 +260,9 @@ The EDCL CLASS patch is included in this repo:
 cosmology/patches/class_edcl.patch
 ```
 
-The cosmology harness documentation states that Tier-A requires patched CLASS tested against upstream tag `v3.3.4` plus Cobaya `v3.6`.
+The suite runner is designed to clone upstream CLASS, prefer tag `v3.3.4` when available, apply the included patch, build CLASS/classy, and run smoke/preflight checks.
 
-Plain upstream CLASS is not sufficient unless the EDCL patch has been applied, because the Tier-A EDCL YAMLs pass EDCL-specific parameters such as:
+Plain upstream CLASS is not sufficient unless the EDCL patch has been applied, because the Tier-A1 EDCL YAMLs pass EDCL-specific parameters such as:
 
 ```text
 edcl_on
@@ -188,9 +275,7 @@ edcl_ai
 alpha_R
 ```
 
-Do not commit a full copied `class_public/` tree into this repository. Keep CLASS, Cobaya packages, chains, and timestamped workdirs outside normal git history. If needed, publish heavy runtime artifacts as GitHub Release assets.
-
-Before running expensive MCMC chains, verify the runtime with:
+Before running expensive MCMC chains with an existing CLASS build, verify the runtime with:
 
 ```bash
 python cosmology/scripts/smoke_test_classy_edcl.py \
@@ -206,59 +291,44 @@ EDCL compute OK.
 
 If the smoke test fails with unknown EDCL parameters, the CLASS source is not the correct EDCL-patched runtime or the parameter names have drifted.
 
-The remaining from-scratch reproducibility tasks are now:
+The remaining from-scratch reproducibility tasks are:
 
 ```text
-build patched CLASS/classy from the included patch;
-record the exact upstream CLASS commit/tag actually used;
-record Python/Cobaya/GetDist versions;
-record the build command and platform;
-record successful smoke-test output;
-publish heavy chains/workdirs as Release assets if needed.
+build patched CLASS/classy from the included patch
+record the exact upstream CLASS commit/tag actually used
+record Python/Cobaya/GetDist versions
+record the build command and platform
+record successful smoke-test output
+publish heavy chains/workdirs as Release assets if needed
 ```
 
-### Optional automated Tier-A1 suite runner
+## Workdir outputs from the corrected runner
 
-The repo includes an automated Tier-A1 late-only suite runner:
-
-```bash
-python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate
-```
-
-For a referee-grade run:
-
-```bash
-python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile referee
-```
-
-The suite runner is designed to:
+The corrected runner writes generated runtime artifacts under the timestamped workdir:
 
 ```text
-clone CLASS;
-prefer upstream tag v3.3.4 if available;
-apply cosmology/patches/class_edcl.patch;
-build CLASS/classy;
-run EDCL smoke/preflight checks;
-render YAMLs;
-run Cobaya install/test/run steps;
-validate outputs;
-bundle logs, YAMLs, chains, and reports.
+<workdir>/manifest.json
+<workdir>/logs/
+<workdir>/yamls/
+<workdir>/chains/
+<workdir>/results_summary.json
+<workdir>/results_report.md
+<workdir>/bundle_edcl_tiera1.zip
 ```
 
-Use this runner in a Linux/Colab/WSL-style environment where CLASS/Cobaya builds are supported. Generated workdirs, chains, and bundles should not be committed to normal git history.
+Rendered YAMLs are written into:
 
-The runner generates or renders YAML configurations, runs MCMC chains, and then calls analysis/validation scripts such as:
-
-```bash
-python cosmology/scripts/analyze_chains.py \
-  --chains-dir "$OUTPUT_DIR" \
-  --output "$OUTPUT_DIR/validation_results.json" \
-  --plot
+```text
+<workdir>/yamls/
 ```
 
-### 3. Analyze existing chain files
+not into `cosmology/cobaya/`.
 
-If the chain files already exist, analyze them directly:
+Generated workdirs, chains, bundles, patched CLASS builds, Cobaya packages, and `*.updated.yaml` files should not be committed to normal git history.
+
+## Analyze existing chain files directly
+
+If chain files already exist, analyze them directly with `analyze_chains.py`:
 
 ```bash
 python cosmology/scripts/analyze_chains.py \
@@ -267,7 +337,7 @@ python cosmology/scripts/analyze_chains.py \
   --plot
 ```
 
-Expected chain names include:
+Expected production-chain names include:
 
 ```text
 lcdm_production.1.txt
@@ -275,7 +345,34 @@ edcl_production.1.txt
 edcl_no_h0_medium.1.txt
 ```
 
-### 4. Verify the H0_obs likelihood regression test
+This chain-file analysis is separate from the workdir-level validator.
+
+## Re-validate an existing workdir
+
+Use the workdir-level validator on a suite-runner workdir:
+
+```bash
+python3 cosmology/scripts/validate_tiera1_lateonly_results.py \
+  --workdir <WORKDIR> \
+  --profile iterate
+```
+
+For referee mode:
+
+```bash
+python3 cosmology/scripts/validate_tiera1_lateonly_results.py \
+  --workdir <WORKDIR> \
+  --profile referee
+```
+
+The validator writes:
+
+```text
+<WORKDIR>/results_summary.json
+<WORKDIR>/results_report.md
+```
+
+## Verify the H0_obs likelihood regression test
 
 Run:
 
@@ -285,10 +382,12 @@ python tests/test_h0_obs_likelihood.py
 
 Expected behavior:
 
-- verifies `H0_obs = H0 * (1 + alpha_R * 0.7542)`;
-- verifies the local anchor is applied to `H0_obs`, not directly to theory-frame `H0`.
+```text
+verifies H0_obs = H0 * (1 + alpha_R * 0.7542)
+verifies the local anchor is applied to H0_obs, not directly to theory-frame H0
+```
 
-### 5. Run lint/package gate if available
+## Run lint/package gate if available
 
 The lint-pack logs provided for the current validation included these checks:
 
@@ -296,24 +395,12 @@ The lint-pack logs provided for the current validation included these checks:
 1. clean/reject __pycache__ and .pyc artifacts
 2. scan for known failure patterns
 3. YAML guardrails for EDCL/LCDM separation and numeric traps
-4. SH0ES/H0 double-count guard by name/config scan
+4. local-H0 / SH0ES double-count guard by name/config scan
 5. Python compilation in memory
 6. deterministic unit tests without external datasets
 ```
 
-A passing lint-pack record reported:
-
-```text
-[PASS] No __pycache__ / .pyc artifacts found.
-[PASS] No known failure patterns found.
-[PASS] YAML guardrails: OK
-[PASS] No obvious SH0ES/H0 double-counting detected by name/config scan.
-[PASS] Python compilation: OK
-[PASS] Unit tests: OK
-[PASS] Lint gate passed.
-```
-
-The lint-pack double-count guard reports likelihood keys by name/config scan. It cannot prove PantheonPlus is unanchored unless SH0ES markers appear in config strings, so this remains a guardrail rather than a mathematical proof.
+The local-H0 / SH0ES scan is a guardrail. It cannot prove PantheonPlus is unanchored unless SH0ES markers appear in config strings.
 
 ## What still requires timestamped workdirs
 
@@ -326,17 +413,20 @@ edcl_tiera1_20251221_212236/
 edcl_tiera1_20251221_212444/
 ```
 
+or regenerated equivalent workdirs produced by the corrected runner.
+
 Useful workdir contents include:
 
 ```text
-final YAML/config files
+final rendered YAML files
+Cobaya updated YAML files
 Cobaya logs
 CLASS/Cobaya environment information
 run commands
-package manifests
+manifest.json
 checksums
-lint-pack logs
-bundle zips
+lint/guard logs
+bundle zip
 ```
 
 Do not commit these workdirs into normal git history. Publish them as GitHub Release assets if needed.
