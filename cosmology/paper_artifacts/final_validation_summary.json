@@ -1,39 +1,90 @@
 {
   "validation_date": "2025-12-21",
-  "dataset": "Late-only: DESI BAO + PantheonPlus + Riess H0",
+  "validation_stage": "Tier-A1 late-only",
+  "status": "mechanism_activation_not_decisive_resolution",
+  "claim_boundary": {
+    "allowed_current_wording": "Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.",
+    "not_allowed_as_current_Tier_A1_claim": "EDCL decisively resolves the Hubble tension.",
+    "scope_note": "This compact summary records late-only mechanism behavior. It is not a standalone full Hubble-tension resolution or Planck-compatibility result."
+  },
+  "dataset": [
+    "DESI DR2 BAO",
+    "PantheonPlus",
+    "local observed-frame H0_obs anchor"
+  ],
+  "observable_definition": {
+    "delta0": "alpha_R * f_norm",
+    "H0_obs": "H0_theory * (1 + delta0)",
+    "f_norm": 0.7542
+  },
+  "h0_likelihood_convention": {
+    "lcdm_local_h0": "direct H0.riess2020 is allowed for LCDM",
+    "edcl_with_local_h0": "H0_edcl is required; direct H0.riess2020 is forbidden; derived H0_obs and delta0 are required",
+    "edcl_no_h0": "H0_edcl and direct H0.riess2020 are forbidden",
+    "canonical_helper": "cosmology/likelihoods/H0_edcl_func.py"
+  },
   "lcdm": {
-    "H0": "71.37 \u00b1 0.72",
-    "omega_b": "0.02511 \u00b1 0.00078",
-    "omega_cdm": "0.1306 \u00b1 0.0052",
+    "H0": "71.37 ± 0.72",
+    "omega_b": "0.02511 ± 0.00078",
+    "omega_cdm": "0.1306 ± 0.0052",
     "chi2_best": 1417.2453,
     "n_samples": 1620,
     "eff_samples": 5094.0
   },
-  "edcl_with_h0": {
-    "H0_theory": "68.80 \u00b1 1.85",
-    "alpha_R": "0.0826 \u00b1 0.0408",
+  "edcl_with_h0_obs": {
+    "H0_theory": "68.80 ± 1.85",
+    "alpha_R": "0.0826 ± 0.0408",
+    "alpha_R_mean": 0.0826,
+    "alpha_R_sigma": 0.0408,
+    "alpha_R_mean_over_sigma": 2.0245,
     "alpha_R_68CI": [
       0.039695823400000003,
       0.1254485652
     ],
-    "H0_obs": "73.04 \u00b1 0.95",
+    "delta0": "0.0623 ± 0.0308",
+    "H0_obs": "73.04 ± 0.95",
     "chi2_best": 1416.1826,
     "n_samples": 1848,
     "eff_samples": 5232.0
   },
-  "edcl_without_h0": {
-    "H0_theory": "68.01 \u00b1 1.97",
-    "alpha_R": "0.0147 \u00b1 0.0142",
+  "edcl_without_local_h0": {
+    "H0_theory": "68.01 ± 1.97",
+    "alpha_R": "0.0147 ± 0.0142",
+    "alpha_R_mean": 0.0147,
+    "alpha_R_sigma": 0.0142,
     "alpha_R_95upper": 0.049694743549999996,
     "chi2_best": 1416.2775
   },
-  "delta_chi2": -1.0626999999999498,
+  "best_fit_accounting": {
+    "delta_chi2_edcl_h0obs_vs_lcdm": -1.0627,
+    "component_deltas": {
+      "H0_or_H0_obs": -1.0182,
+      "BAO": -0.315,
+      "SN": 0.2705
+    },
+    "source": "cosmology/results/tierA1_chain_component_audit.json",
+    "note": "The total best-fit improvement is modest and is a diagnostic mechanism result, not decisive model-comparison evidence."
+  },
   "collapse_ratio": 0.17757155036012742,
   "validation_status": {
-    "activation": "PASS",
-    "collapse": "PASS",
-    "h0_match": "PASS",
-    "chi2_improvement": "PASS"
+    "activation": "PASS_mechanism_check",
+    "collapse": "PASS_mechanism_check",
+    "h0_obs_match": "PASS_mechanism_check",
+    "chi2_improvement": "PASS_diagnostic_only"
   },
-  "note": "\u0394\u03c7\u00b2 is small because late-only data allows \u039bCDM to compromise on H0. Add CMB for full test."
+  "next_required_validations": [
+    "workdir-backed provenance for YAML/config/log/environment state",
+    "likelihood ablations",
+    "kernel/prior/local-anchor robustness scans",
+    "fair baselines",
+    "Tier-A2 Planck validation",
+    "documented Bayesian-evidence provenance if evidence claims are made"
+  ],
+  "related_current_artifacts": [
+    "cosmology/results/tierA1_hubble_result_card.json",
+    "cosmology/results/tierA1_chain_component_audit.json",
+    "docs/HOW_TO_REPRODUCE_TIER_A1_OUTPUTS.md",
+    "docs/HUBBLE_RESOLUTION_CLAIM_LADDER.md",
+    "cosmology/docs/H0_LIKELIHOOD_FIX.md"
+  ]
 }
