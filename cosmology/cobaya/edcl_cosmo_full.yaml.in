@@ -1,10 +1,17 @@
 # edcl_cosmo_full.yaml.in
 #
-# Full (CMB + BAO + SN + H0) EDCL Phase-1 template (background-only H(a) rescaling).
+# Full (CMB + BAO + SN + observed-frame H0_obs) EDCL Phase-1 template
+# (background-only H(a) rescaling).
 #
 # CRITICAL:
 #   When EDCL is ON, the patched CLASS build reads these extra parameters:
 #     alpha_R, kappa_tick, c4, log10_l0, edcl_kernel, edcl_zeta, edcl_ai
+#
+# H0 likelihood convention:
+#   EDCL must not use the standard direct Riess H0 likelihood in this run.
+#   Instead, compare the observed-frame quantity
+#     H0_obs = H0 * (1 + alpha_R * 0.7542)
+#   to the local Riess value using the custom H0_edcl likelihood below.
 #
 # NOTE:
 #   Planck/clik often cannot be installed in lightweight environments (e.g. many Colab runtimes).
@@ -17,7 +24,11 @@ likelihood:
   planck_2018_lensing.clik: null
   bao.desi_dr2.desi_bao_all: null
   sn.pantheonplus: null
-  H0.riess2020: null
+
+  # Custom EDCL-aware H0 likelihood:
+  # compares H0_obs = H0 * (1 + delta0) to the Riess measurement.
+  H0_edcl:
+    external: "lambda H0, alpha_R: -0.5 * ((H0 * (1.0 + alpha_R * 0.7542) - 73.04) / 1.04) ** 2"
 
   # DESI full-shape likelihood keys vary by install; enable only if cobaya-install recognizes it.
   # desi_dr2.full_shape: null
@@ -76,6 +87,13 @@ params:
     prior: {min: 0.0, max: 0.25}
     ref: {dist: norm, loc: 0.05, scale: 0.03}
     proposal: 0.01
+
+  # Observed-frame local Hubble quantity used by the custom H0_edcl likelihood.
+  H0_obs:
+    derived: 'lambda H0, alpha_R: H0 * (1.0 + alpha_R * 0.7542)'
+
+  delta0:
+    derived: 'lambda alpha_R: alpha_R * 0.7542'
 
 output: __OUTPUT_DIR__
 
