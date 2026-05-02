@@ -55,17 +55,18 @@ This technical correction is central and should be preserved.
 
 | Test | Status | Interpretation |
 |---|---|---|
-| Custom likelihood applies local H0 to `H0_obs` | validated by code review; lightweight regression test still to add | Required for a meaningful EDCL Hubble test |
+| Custom likelihood applies local H0 to `H0_obs` | validated by code review and `tests/test_h0_obs_likelihood.py` | Required for a meaningful EDCL Hubble test |
 | Activation with local H0 included | present | `alpha_R` is about `2.0σ` by mean/std |
 | Collapse without local H0 | present | no-H0 run gives `alpha_R = 0.0147 ± 0.0142` |
 | Observed-frame H0 match | present | `H0_obs = 73.04 ± 0.95` km/s/Mpc |
 | Late-only fit improvement | modest | `Delta chi2 = -1.0627` with one added parameter |
+| Best-fit component accounting | chain-verified for the available Tier-A1 chains | EDCL+H0_obs vs LCDM gives `Delta chi2 = -1.0627`, with H0/H0_obs = `-1.0182`, BAO = `-0.3150`, and SN = `+0.2705`; see `cosmology/results/tierA1_chain_component_audit.json` |
 
 ## What is not yet validated
 
 The following are resolution targets, not completed Tier-A1 claims:
 
-1. Exact per-likelihood chi2 decomposition from chain components.
+1. Full workdir-backed provenance for the component accounting, including exact YAML/config/log/environment reconstruction. Best-fit component accounting from the available chain columns is now recorded in `cosmology/results/tierA1_chain_component_audit.json`.
 2. Likelihood ablations showing the activation is specifically driven by local `H0_obs`.
 3. Kernel, prior, and local-anchor robustness scans.
 4. Fair baselines against `wCDM`, `w0waCDM`, and generic calibration offsets.
@@ -93,7 +94,7 @@ Canonical entrypoints:
 ```bash
 python COLAB_TIER_A_VALIDATION.py --profile referee
 bash RUN_TIER_A_VALIDATION.sh
-python cosmology/scripts/analyze_chains.py --workdir <workdir> --profile referee
+python cosmology/scripts/analyze_chains.py --chains-dir <chains_dir> --output tierA1_chain_verification.json --plot
 python cosmology/scripts/validate_tiera1_lateonly_results.py --workdir <workdir> --profile referee
 ```
 
@@ -107,13 +108,14 @@ See `docs/TIER_A_ARTIFACT_MANIFEST.md`. At minimum, a referee-facing Tier-A rele
 - YAML/config files;
 - environment manifest;
 - checksums;
-- `cosmology/results/tierA1_hubble_result_card.json`.
+- `cosmology/results/tierA1_hubble_result_card.json`;
+- `cosmology/results/tierA1_chain_component_audit.json` for chain-verified posterior values, best-fit component accounting, formula checks, and BBN consistency contrast.
 
 ## Next validation priorities
 
-1. Publish or locate Tier-A chain/workdir artifacts.
-2. Extract exact per-likelihood chi2 components.
-3. Add the lightweight `H0_obs` likelihood regression test locally or in a follow-up commit.
+1. Publish or locate the remaining Tier-A workdir artifacts for YAML/config/log/environment provenance.
+2. Preserve `cosmology/results/tierA1_chain_component_audit.json` as the current chain-verified best-fit component accounting.
+3. Maintain the lightweight `H0_obs` likelihood regression test in `tests/test_h0_obs_likelihood.py`.
 4. Run likelihood ablations.
 5. Run kernel/prior/local-anchor robustness scans.
 6. Run Planck distance-prior preflight and then full Tier-A2.
