@@ -165,7 +165,15 @@ Cobaya data packages for DESI DR2 BAO and PantheonPlus
 
 ### EDCL-patched CLASS runtime requirement
 
-A fresh clone of this repository is not, by itself, enough to regenerate the Tier-A MCMC chains from scratch. Tier-A requires an EDCL-enabled CLASS/classy runtime.
+A fresh clone of this repository is not, by itself, enough to regenerate the Tier-A MCMC chains from scratch until the EDCL-patched CLASS/classy runtime is built.
+
+The EDCL CLASS patch is included in this repo:
+
+```text
+cosmology/patches/class_edcl.patch
+```
+
+The cosmology harness documentation states that Tier-A requires patched CLASS tested against upstream tag `v3.3.4` plus Cobaya `v3.6`.
 
 Plain upstream CLASS is not sufficient unless the EDCL patch has been applied, because the Tier-A EDCL YAMLs pass EDCL-specific parameters such as:
 
@@ -178,14 +186,6 @@ edcl_kernel
 edcl_zeta
 edcl_ai
 alpha_R
-```
-
-A reproducible Tier-A setup therefore requires one of the following:
-
-```text
-1. the original EDCL-patched CLASS source tree;
-2. a documented EDCL patch applied to a specified upstream CLASS tag/commit;
-3. a documented EDCL CLASS fork/branch/tag.
 ```
 
 Do not commit a full copied `class_public/` tree into this repository. Keep CLASS, Cobaya packages, chains, and timestamped workdirs outside normal git history. If needed, publish heavy runtime artifacts as GitHub Release assets.
@@ -206,18 +206,48 @@ EDCL compute OK.
 
 If the smoke test fails with unknown EDCL parameters, the CLASS source is not the correct EDCL-patched runtime or the parameter names have drifted.
 
-The remaining from-scratch reproducibility gap is to supply the exact EDCL CLASS patch/fork/source used for the current Tier-A1 chains, including:
+The remaining from-scratch reproducibility tasks are now:
 
 ```text
-upstream CLASS tag/commit
-EDCL patch/fork/source location
-patch or source hash
-build command
-Python/Cobaya versions
-successful smoke-test result
+build patched CLASS/classy from the included patch;
+record the exact upstream CLASS commit/tag actually used;
+record Python/Cobaya/GetDist versions;
+record the build command and platform;
+record successful smoke-test output;
+publish heavy chains/workdirs as Release assets if needed.
 ```
 
-The runner generates or renders YAML configurations, runs three MCMC chains, and then calls:
+### Optional automated Tier-A1 suite runner
+
+The repo includes an automated Tier-A1 late-only suite runner:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate
+```
+
+For a referee-grade run:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile referee
+```
+
+The suite runner is designed to:
+
+```text
+clone CLASS;
+prefer upstream tag v3.3.4 if available;
+apply cosmology/patches/class_edcl.patch;
+build CLASS/classy;
+run EDCL smoke/preflight checks;
+render YAMLs;
+run Cobaya install/test/run steps;
+validate outputs;
+bundle logs, YAMLs, chains, and reports.
+```
+
+Use this runner in a Linux/Colab/WSL-style environment where CLASS/Cobaya builds are supported. Generated workdirs, chains, and bundles should not be committed to normal git history.
+
+The runner generates or renders YAML configurations, runs MCMC chains, and then calls analysis/validation scripts such as:
 
 ```bash
 python cosmology/scripts/analyze_chains.py \
