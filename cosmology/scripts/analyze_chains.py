@@ -1,439 +1,605 @@
 #!/usr/bin/env python3
 """
-analyze_chains.py - Analyze EDCL Tier-A validation MCMC chains.
+analyze_chains.py - Standalone analysis for EDCL Tier-A1 Cobaya chain files.
 
-This script loads Cobaya chain files and computes:
-- Parameter constraints (mean, std, percentiles)
-- Best-fit chi-squared values
-- Model comparison (EDCL vs ΛCDM)
-- Validation tests (activation, collapse, H0 match)
+This script is intentionally a chain-file analyzer, not the canonical workdir
+validator. For full workdir validation with YAML/config/log checks, use:
+
+  python3 cosmology/scripts/validate_tiera1_lateonly_results.py --workdir <WORKDIR> --profile iterate
+
+This analyzer loads existing Cobaya chain files and computes:
+- weighted parameter constraints
+- best-fit chi2 values
+- unique chi2 component accounting, including chi2__H0_edcl
+- EDCL formula consistency checks for delta0 and H0_obs when columns exist
+- lightweight mechanism checks: activation, no-H0 collapse, H0_obs match
+
+Current claim boundary:
+  Tier-A1 is a mechanism-activation/collapse test. This script must not be used
+  by itself to claim decisive full Hubble-tension resolution.
 
 Usage:
-    python analyze_chains.py                    # Analyze chains in ./chains/
-    python analyze_chains.py --chains-dir /path/to/chains
-    python analyze_chains.py --output report.json --plot
-
-Requirements:
-    - numpy
-    - matplotlib (optional, for plotting)
-    - json (standard library)
+  python3 cosmology/scripts/analyze_chains.py
+  python3 cosmology/scripts/analyze_chains.py --chains-dir /path/to/chains
+  python3 cosmology/scripts/analyze_chains.py --output report.json --plot
 """
+from __future__ import annotations
 
 import argparse
+import gzip
 import json
-import os
+import math
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 
 
+RIESS_H0_MEAN = 73.04
+RIESS_H0_STD = 1.04
+EDCL_F_NORM = 0.7542
+
+
+# ---------------------------------------------------------------------------
+# IO and weighted summaries
+# ---------------------------------------------------------------------------
+def _open_text(path: Path):
+    if path.suffix == ".gz":
+        return gzip.open(path, "rt", encoding="utf-8", errors="replace")
+    return path.open("r", encoding="utf-8", errors="replace")
+
+
 def load_chain(path: str) -> Tuple[np.ndarray, List[str]]:
-    """
-    Load a Cobaya chain file and parse its header.
-    
-    Args:
-        path: Path to chain file (e.g., 'chains/edcl.1.txt')
-        
-    Returns:
-        Tuple of (chain_data, header_names)
-    """
-    with open(path, 'r') as f:
-        header_line = f.readline()
-    
-    # Parse header - handle both '#' prefix and space-separated
-    header = header_line.strip().lstrip('#').split()
-    
-    # Load data
-    chain = np.loadtxt(path)
-    
-    return chain, header
+    """Load a Cobaya/GetDist-style chain file and parse its header."""
+    p = Path(path)
+    header: Optional[List[str]] = None
+    rows: List[List[float]] = []
+
+    with _open_text(p) as f:
+        for line in f:
+            s = line.strip()
+            if not s:
+                continue
+
+            if s.startswith("#"):
+                if header is None:
+                    header = s.lstrip("#").split()
+                continue
+
+            if header is None:
+                # Chain files should have a header. Ignore pre-header data lines.
+                continue
+
+            parts = s.split()
+            if len(parts) != len(header):
+                continue
+
+            try:
+                rows.append([float(x) for x in parts])
+            except ValueError:
+                continue
+
+    if header is None:
+        raise ValueError(f"No header found in chain file: {p}")
+    if not rows:
+        raise ValueError(f"No parseable rows found in chain file: {p}")
+
+    return np.asarray(rows, dtype=float), header
+
+
+def _get_column(chain: np.ndarray, header: List[str], name: str) -> Optional[np.ndarray]:
+    if name not in header:
+        return None
+    return chain[:, header.index(name)]
+
+
+def _weight_column(chain: np.ndarray, header: List[str]) -> np.ndarray:
+    for name in ("weight", "weights"):
+        col = _get_column(chain, header, name)
+        if col is not None:
+            return col
+    return np.ones(chain.shape[0], dtype=float)
+
+
+def weighted_quantile(values: np.ndarray, weights: np.ndarray, q: float) -> float:
+    values = np.asarray(values, dtype=float)
+    weights = np.asarray(weights, dtype=float)
+    if values.size == 0:
+        return float("nan")
+
+    order = np.argsort(values)
+    xs = values[order]
+    ws = weights[order]
+    total = float(np.sum(ws))
+
+    if not np.isfinite(total) or total <= 0:
+        return float(np.quantile(xs, q))
+
+    cdf = np.cumsum(ws) / total
+    idx = int(np.searchsorted(cdf, q, side="left"))
+    idx = max(0, min(idx, len(xs) - 1))
+    return float(xs[idx])
 
 
 def weighted_stats(values: np.ndarray, weights: np.ndarray) -> Dict[str, float]:
-    """
-    Compute weighted statistics for a parameter.
-    
-    Args:
-        values: Parameter values
-        weights: Sample weights
-        
-    Returns:
-        Dictionary with mean, std, median, and percentiles
-    """
-    mean = np.average(values, weights=weights)
-    variance = np.average((values - mean) ** 2, weights=weights)
-    std = np.sqrt(variance)
-    
-    # For percentiles, we need to sort and use cumulative weights
-    sorted_idx = np.argsort(values)
-    sorted_values = values[sorted_idx]
-    sorted_weights = weights[sorted_idx]
-    cumsum = np.cumsum(sorted_weights)
-    cumsum /= cumsum[-1]  # Normalize to [0, 1]
-    
-    # Find percentile values
-    q16 = sorted_values[np.searchsorted(cumsum, 0.16)]
-    q50 = sorted_values[np.searchsorted(cumsum, 0.50)]
-    q84 = sorted_values[np.searchsorted(cumsum, 0.84)]
-    q95 = sorted_values[np.searchsorted(cumsum, 0.95)]
-    q05 = sorted_values[np.searchsorted(cumsum, 0.05)]
-    
+    values = np.asarray(values, dtype=float)
+    weights = np.asarray(weights, dtype=float)
+    total = float(np.sum(weights))
+
+    if not np.isfinite(total) or total <= 0:
+        mean = float(np.mean(values))
+        std = float(np.std(values))
+        q05, q16, q50, q84, q95 = [float(np.quantile(values, q)) for q in (0.05, 0.16, 0.50, 0.84, 0.95)]
+    else:
+        mean = float(np.average(values, weights=weights))
+        variance = float(np.average((values - mean) ** 2, weights=weights))
+        std = math.sqrt(max(0.0, variance))
+        q05 = weighted_quantile(values, weights, 0.05)
+        q16 = weighted_quantile(values, weights, 0.16)
+        q50 = weighted_quantile(values, weights, 0.50)
+        q84 = weighted_quantile(values, weights, 0.84)
+        q95 = weighted_quantile(values, weights, 0.95)
+
     return {
-        'mean': float(mean),
-        'std': float(std),
-        'median': float(q50),
-        'q05': float(q05),
-        'q16': float(q16),
-        'q84': float(q84),
-        'q95': float(q95),
+        "mean": mean,
+        "std": std,
+        "median": q50,
+        "q05": q05,
+        "q16": q16,
+        "q84": q84,
+        "q95": q95,
     }
+
+
+# ---------------------------------------------------------------------------
+# Chi2 component accounting
+# ---------------------------------------------------------------------------
+def _first_existing(header: List[str], names: Iterable[str]) -> Optional[str]:
+    for name in names:
+        if name in header:
+            return name
+    return None
+
+
+def select_unique_chi2_components(header: List[str]) -> List[str]:
+    """Select unique chi2 components without double-counting Cobaya aliases."""
+    cols = [c for c in header if c.startswith("chi2__")]
+
+    def first_with_prefix(prefixes: Iterable[str], fallback: Optional[str] = None) -> Optional[str]:
+        for prefix in prefixes:
+            matches = sorted(c for c in cols if c.lower().startswith(prefix.lower()))
+            if matches:
+                return matches[0]
+        if fallback and fallback in cols:
+            return fallback
+        return None
+
+    selected: List[str] = []
+
+    for cand in [
+        first_with_prefix(["chi2__bao."], "chi2__BAO"),
+        first_with_prefix(["chi2__sn."], "chi2__SN"),
+        _first_existing(header, ["chi2__H0_edcl"]),
+        first_with_prefix(["chi2__H0.", "chi2__h0.", "chi2__riess", "chi2__sh0es"], "chi2__H0"),
+    ]:
+        if cand and cand not in selected:
+            selected.append(cand)
+
+    # Include any other components not already represented by the preferred aliases.
+    represented_prefixes = ("chi2__bao.", "chi2__sn.", "chi2__H0.", "chi2__h0.", "chi2__riess", "chi2__sh0es")
+    alias_cols = {"chi2__BAO", "chi2__SN", "chi2__H0", "chi2__H0_edcl"}
+    for col in cols:
+        if col in selected:
+            continue
+        if col in alias_cols:
+            continue
+        if col.lower().startswith(tuple(p.lower() for p in represented_prefixes)):
+            continue
+        selected.append(col)
+
+    return selected
+
+
+def bestfit_summary(chain: np.ndarray, header: List[str]) -> Dict[str, Any]:
+    """Return best-fit chi2 total and selected components."""
+    chi2_col = _get_column(chain, header, "chi2")
+    component_cols = select_unique_chi2_components(header)
+
+    if chi2_col is not None:
+        idx = int(np.argmin(chi2_col))
+        method = "min(chi2)"
+        total = float(chi2_col[idx])
+    elif component_cols:
+        comp_arrays = [_get_column(chain, header, c) for c in component_cols]
+        valid_arrays = [a for a in comp_arrays if a is not None]
+        if not valid_arrays:
+            return {"method": None, "chi2_total_bestfit": None, "components": {}}
+        summed = np.zeros(chain.shape[0], dtype=float)
+        for arr in valid_arrays:
+            summed += arr
+        idx = int(np.argmin(summed))
+        method = "min(sum(unique chi2__))"
+        total = float(summed[idx])
+    else:
+        return {"method": None, "chi2_total_bestfit": None, "components": {}}
+
+    components: Dict[str, float] = {}
+    for col in component_cols:
+        arr = _get_column(chain, header, col)
+        if arr is not None:
+            components[col] = float(arr[idx])
+
+    return {
+        "method": method,
+        "bestfit_row_index": idx,
+        "chi2_total_bestfit": total,
+        "components": components,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Chain-level analysis
+# ---------------------------------------------------------------------------
+def formula_consistency(chain: np.ndarray, header: List[str]) -> Dict[str, Any]:
+    """Check EDCL derived-column consistency where columns exist."""
+    out: Dict[str, Any] = {}
+    alpha = _get_column(chain, header, "alpha_R")
+    h0 = _get_column(chain, header, "H0")
+    delta = _get_column(chain, header, "delta0")
+    h0_obs = _get_column(chain, header, "H0_obs")
+
+    if alpha is not None and delta is not None:
+        expected = alpha * EDCL_F_NORM
+        err = delta - expected
+        out["delta0_equals_alpha_R_times_f_norm"] = {
+            "f_norm": EDCL_F_NORM,
+            "max_abs_error": float(np.max(np.abs(err))),
+            "rms_error": float(np.sqrt(np.mean(err ** 2))),
+        }
+
+    if alpha is not None and h0 is not None and h0_obs is not None:
+        expected = h0 * (1.0 + alpha * EDCL_F_NORM)
+        err = h0_obs - expected
+        out["H0_obs_equals_H0_times_one_plus_delta0"] = {
+            "f_norm": EDCL_F_NORM,
+            "max_abs_error": float(np.max(np.abs(err))),
+            "rms_error": float(np.sqrt(np.mean(err ** 2))),
+        }
+
+    return out
 
 
 def analyze_chain(path: str, name: str, is_edcl: bool = False) -> Dict[str, Any]:
-    """
-    Analyze a single chain file.
-    
-    Args:
-        path: Path to chain file
-        name: Display name for this chain
-        is_edcl: Whether this is an EDCL chain (has alpha_R)
-        
-    Returns:
-        Dictionary with analysis results
-    """
     chain, header = load_chain(path)
-    
-    # First column is always weight
-    weights = chain[:, 0]
-    
-    result = {
-        'name': name,
-        'path': path,
-        'n_samples': len(chain),
-        'eff_samples': float(np.sum(weights)),
-        'parameters': {},
+    weights = _weight_column(chain, header)
+
+    result: Dict[str, Any] = {
+        "name": name,
+        "path": str(path),
+        "n_samples": int(chain.shape[0]),
+        "eff_samples": float(np.sum(weights)),
+        "columns": header,
+        "parameters": {},
+        "bestfit": bestfit_summary(chain, header),
     }
-    
-    # Analyze common parameters
-    common_params = ['H0', 'omega_b', 'omega_cdm']
-    for param in common_params:
-        if param in header:
-            idx = header.index(param)
-            result['parameters'][param] = weighted_stats(chain[:, idx], weights)
-    
-    # Chi-squared
-    if 'chi2' in header:
-        chi2_idx = header.index('chi2')
-        chi2 = chain[:, chi2_idx]
-        result['chi2_best'] = float(np.min(chi2))
-        result['chi2_mean'] = float(np.average(chi2, weights=weights))
-    
-    # EDCL-specific parameters
+
+    for param in ["H0", "omega_b", "omega_cdm"]:
+        col = _get_column(chain, header, param)
+        if col is not None:
+            result["parameters"][param] = weighted_stats(col, weights)
+
     if is_edcl:
-        edcl_params = ['alpha_R', 'H0_obs', 'delta0']
-        for param in edcl_params:
-            if param in header:
-                idx = header.index(param)
-                result['parameters'][param] = weighted_stats(chain[:, idx], weights)
-    
+        for param in ["alpha_R", "H0_obs", "delta0"]:
+            col = _get_column(chain, header, param)
+            if col is not None:
+                result["parameters"][param] = weighted_stats(col, weights)
+
+        fc = formula_consistency(chain, header)
+        if fc:
+            result["formula_consistency"] = fc
+
+    # Back-compatible top-level chi2 fields.
+    if result["bestfit"].get("chi2_total_bestfit") is not None:
+        result["chi2_best"] = result["bestfit"]["chi2_total_bestfit"]
+    chi2 = _get_column(chain, header, "chi2")
+    if chi2 is not None:
+        result["chi2_mean"] = float(np.average(chi2, weights=weights))
+
     return result
 
 
-def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
-    """
-    Run validation tests on the analysis results.
-    
-    Args:
-        results: Dictionary of chain analysis results
-        
-    Returns:
-        Dictionary with test results
-    """
-    tests = {}
-    
-    # Test 1: Activation - alpha_R activates with local H0_obs likelihood
-    if 'edcl_with_h0' in results:
-        edcl = results['edcl_with_h0']
-        if 'alpha_R' in edcl['parameters']:
-            alpha = edcl['parameters']['alpha_R']
-            # Check if lower 68% bound is above threshold
+# ---------------------------------------------------------------------------
+# Lightweight mechanism tests
+# ---------------------------------------------------------------------------
+def run_validation_tests(results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    tests: Dict[str, Dict[str, Any]] = {}
+
+    if "edcl_with_h0" in results:
+        edcl = results["edcl_with_h0"]
+        if "alpha_R" in edcl.get("parameters", {}):
+            alpha = edcl["parameters"]["alpha_R"]
             threshold = 0.02
-            tests['activation'] = {
-                'description': 'alpha_R activates with local H0_obs likelihood',
-                'alpha_R_mean': alpha['mean'],
-                'alpha_R_std': alpha['std'],
-                'alpha_R_q16': alpha['q16'],
-                'alpha_R_q84': alpha['q84'],
-                'threshold': threshold,
-                'pass': alpha['q16'] > threshold,
+            tests["activation"] = {
+                "description": "alpha_R activates with local H0_obs likelihood",
+                "alpha_R_mean": alpha["mean"],
+                "alpha_R_std": alpha["std"],
+                "alpha_R_q16": alpha["q16"],
+                "alpha_R_q84": alpha["q84"],
+                "threshold": threshold,
+                "pass": bool(alpha["q16"] > threshold),
+                "note": "Standalone chain-analyzer check; canonical workdir validator uses validation_config.yaml.",
             }
-    
-    # Test 2: Collapse - alpha_R drops without local H0_obs likelihood
-    if 'edcl_with_h0' in results and 'edcl_no_h0' in results:
-        with_h0 = results['edcl_with_h0']['parameters'].get('alpha_R', {})
-        without_h0 = results['edcl_no_h0']['parameters'].get('alpha_R', {})
-        
+
+    if "edcl_with_h0" in results and "edcl_no_h0" in results:
+        with_h0 = results["edcl_with_h0"].get("parameters", {}).get("alpha_R", {})
+        without_h0 = results["edcl_no_h0"].get("parameters", {}).get("alpha_R", {})
         if with_h0 and without_h0:
-            collapse_ratio = without_h0['mean'] / with_h0['mean'] if with_h0['mean'] > 0 else 1.0
-            tests['collapse'] = {
-                'description': 'alpha_R collapses without local H0_obs likelihood',
-                'alpha_R_with_h0': with_h0['mean'],
-                'alpha_R_without_h0': without_h0['mean'],
-                'collapse_ratio': collapse_ratio,
-                'reduction_percent': (1 - collapse_ratio) * 100,
-                'pass': collapse_ratio < 0.5,
+            ratio = without_h0["mean"] / with_h0["mean"] if with_h0["mean"] > 0 else 1.0
+            tests["collapse"] = {
+                "description": "alpha_R collapses without local H0_obs likelihood",
+                "alpha_R_with_h0": with_h0["mean"],
+                "alpha_R_without_h0": without_h0["mean"],
+                "collapse_ratio": ratio,
+                "reduction_percent": (1.0 - ratio) * 100.0,
+                "pass": bool(ratio < 0.5),
             }
-    
-    # Test 3: H0 match - H0_obs is consistent with the Riess measurement
-    if 'edcl_with_h0' in results:
-        edcl = results['edcl_with_h0']
-        if 'H0_obs' in edcl['parameters']:
-            h0_obs = edcl['parameters']['H0_obs']
-            h0_riess = 73.04
-            sigma_riess = 1.04
-            
-            # Combined uncertainty
-            sigma_combined = np.sqrt(h0_obs['std']**2 + sigma_riess**2)
-            tension = abs(h0_obs['mean'] - h0_riess) / sigma_combined
-            
-            tests['h0_match'] = {
-                'description': 'H0_obs is consistent with the Riess measurement',
-                'H0_obs_mean': h0_obs['mean'],
-                'H0_obs_std': h0_obs['std'],
-                'H0_riess': h0_riess,
-                'sigma_riess': sigma_riess,
-                'tension_sigma': tension,
-                'pass': tension < 1.0,
+
+    if "edcl_with_h0" in results:
+        edcl = results["edcl_with_h0"]
+        if "H0_obs" in edcl.get("parameters", {}):
+            h0_obs = edcl["parameters"]["H0_obs"]
+            sigma_combined = math.sqrt(h0_obs["std"] ** 2 + RIESS_H0_STD ** 2)
+            tension = abs(h0_obs["mean"] - RIESS_H0_MEAN) / sigma_combined
+            tests["h0_match"] = {
+                "description": "H0_obs is consistent with the Riess measurement",
+                "H0_obs_mean": h0_obs["mean"],
+                "H0_obs_std": h0_obs["std"],
+                "H0_riess": RIESS_H0_MEAN,
+                "sigma_riess": RIESS_H0_STD,
+                "tension_sigma": tension,
+                "pass": bool(tension < 1.0),
             }
-    
-    # Test 4: Chi-squared improvement
-    if 'lcdm' in results and 'edcl_with_h0' in results:
-        lcdm = results['lcdm']
-        edcl = results['edcl_with_h0']
-        
-        if 'chi2_best' in lcdm and 'chi2_best' in edcl:
-            delta_chi2 = edcl['chi2_best'] - lcdm['chi2_best']
-            
-            tests['chi2_improvement'] = {
-                'description': 'EDCL has a lower best-fit chi2 than LCDM in this run',
-                'lcdm_chi2_best': lcdm['chi2_best'],
-                'edcl_chi2_best': edcl['chi2_best'],
-                'delta_chi2': delta_chi2,
-                'pass': delta_chi2 < 0,
+
+    if "lcdm" in results and "edcl_with_h0" in results:
+        lcdm_bf = results["lcdm"].get("bestfit", {})
+        edcl_bf = results["edcl_with_h0"].get("bestfit", {})
+        if lcdm_bf.get("chi2_total_bestfit") is not None and edcl_bf.get("chi2_total_bestfit") is not None:
+            delta_chi2 = edcl_bf["chi2_total_bestfit"] - lcdm_bf["chi2_total_bestfit"]
+            component_delta: Dict[str, float] = {}
+            lcdm_components = lcdm_bf.get("components", {}) or {}
+            edcl_components = edcl_bf.get("components", {}) or {}
+            for key in sorted(set(lcdm_components) | set(edcl_components)):
+                if key in lcdm_components and key in edcl_components:
+                    component_delta[key] = edcl_components[key] - lcdm_components[key]
+
+            tests["chi2_improvement"] = {
+                "description": "EDCL has a lower best-fit chi2 than LCDM in this run",
+                "lcdm_chi2_best": lcdm_bf["chi2_total_bestfit"],
+                "edcl_chi2_best": edcl_bf["chi2_total_bestfit"],
+                "delta_chi2": delta_chi2,
+                "component_delta": component_delta,
+                "pass": bool(delta_chi2 < 0),
+                "claim_boundary": "A lower chi2 here is not by itself a decisive model-comparison result.",
             }
-    
+
     return tests
 
 
-def print_results(results: Dict[str, Dict], tests: Dict[str, Dict]) -> None:
-    """Print formatted results to stdout."""
-    
+# ---------------------------------------------------------------------------
+# Reporting and plotting
+# ---------------------------------------------------------------------------
+def _fmt(value: Any, ndp: int = 4) -> str:
+    try:
+        return f"{float(value):.{ndp}f}"
+    except Exception:
+        return "n/a"
+
+
+def print_results(results: Dict[str, Dict[str, Any]], tests: Dict[str, Dict[str, Any]]) -> None:
     print("=" * 70)
-    print("TIER-A VALIDATION ANALYSIS")
+    print("TIER-A1 CHAIN ANALYSIS")
     print("=" * 70)
-    
-    # Print chain summaries
-    for key, res in results.items():
+    print("Standalone chain-file analysis; use validate_tiera1_lateonly_results.py for workdir/YAML/log validation.")
+    print("Claim boundary: mechanism activation/collapse test, not decisive full Hubble-tension resolution.")
+
+    for _, res in results.items():
         print(f"\n{res['name']}:")
-        print(f"  Samples: {res['n_samples']}, Effective: {res['eff_samples']:.0f}")
-        
-        if 'H0' in res['parameters']:
-            h0 = res['parameters']['H0']
-            print(f"  H0 = {h0['mean']:.2f} +/- {h0['std']:.2f}")
-        
-        if 'alpha_R' in res['parameters']:
-            alpha = res['parameters']['alpha_R']
-            print(f"  alpha_R = {alpha['mean']:.4f} +/- {alpha['std']:.4f} "
-                  f"[{alpha['q16']:.4f}, {alpha['q84']:.4f}]")
-        
-        if 'H0_obs' in res['parameters']:
-            h0_obs = res['parameters']['H0_obs']
-            print(f"  H0_obs = {h0_obs['mean']:.2f} +/- {h0_obs['std']:.2f}")
-        
-        if 'chi2_best' in res:
-            print(f"  Best chi2 = {res['chi2_best']:.2f}")
-    
-    # Print validation tests
+        print(f"  Path: {res['path']}")
+        print(f"  Samples: {res['n_samples']}, Effective: {_fmt(res['eff_samples'], 0)}")
+
+        params = res.get("parameters", {})
+        if "H0" in params:
+            h0 = params["H0"]
+            print(f"  H0 = {_fmt(h0['mean'], 2)} +/- {_fmt(h0['std'], 2)} km/s/Mpc")
+        if "alpha_R" in params:
+            alpha = params["alpha_R"]
+            print(
+                f"  alpha_R = {_fmt(alpha['mean'])} +/- {_fmt(alpha['std'])} "
+                f"[{_fmt(alpha['q16'])}, {_fmt(alpha['q84'])}]"
+            )
+        if "delta0" in params:
+            delta = params["delta0"]
+            print(f"  delta0 = {_fmt(delta['mean'])} +/- {_fmt(delta['std'])}")
+        if "H0_obs" in params:
+            h0_obs = params["H0_obs"]
+            print(f"  H0_obs = {_fmt(h0_obs['mean'], 2)} +/- {_fmt(h0_obs['std'], 2)} km/s/Mpc")
+
+        bf = res.get("bestfit", {})
+        if bf.get("chi2_total_bestfit") is not None:
+            print(f"  Best chi2 = {_fmt(bf['chi2_total_bestfit'], 4)} ({bf.get('method')})")
+            comps = bf.get("components", {}) or {}
+            if comps:
+                print("  Best-fit chi2 components:")
+                for k, v in comps.items():
+                    print(f"    {k}: {_fmt(v, 4)}")
+
+        fc = res.get("formula_consistency", {})
+        if fc:
+            print("  Formula consistency:")
+            for k, v in fc.items():
+                print(f"    {k}: max_abs_error={_fmt(v.get('max_abs_error'), 6)}")
+
     print("\n" + "=" * 70)
     print("VALIDATION TESTS")
     print("=" * 70)
-    
-    for test_name, test in tests.items():
-        status = "PASS" if test['pass'] else "FAIL"
-        print(f"\n{test_name.upper()}: {status}")
-        print(f"  {test['description']}")
-        
-        # Print test-specific details
-        if test_name == 'activation':
-            print(f"  alpha_R = {test['alpha_R_mean']:.4f} +/- {test['alpha_R_std']:.4f}")
-            print(f"  68% CI: [{test['alpha_R_q16']:.4f}, {test['alpha_R_q84']:.4f}]")
-            print(f"  Lower bound {'>=' if test['pass'] else '<'} {test['threshold']}")
-        
-        elif test_name == 'collapse':
-            print(f"  With H0: alpha_R = {test['alpha_R_with_h0']:.4f}")
-            print(f"  Without H0: alpha_R = {test['alpha_R_without_h0']:.4f}")
-            print(f"  Reduction: {test['reduction_percent']:.0f}%")
-        
-        elif test_name == 'h0_match':
-            print(f"  H0_obs = {test['H0_obs_mean']:.2f} +/- {test['H0_obs_std']:.2f}")
-            print(f"  Riess = {test['H0_riess']:.2f} +/- {test['sigma_riess']:.2f}")
-            print(f"  Tension: {test['tension_sigma']:.2f} sigma")
-        
-        elif test_name == 'chi2_improvement':
-            print(f"  LCDM chi2 = {test['lcdm_chi2_best']:.2f}")
-            print(f"  EDCL chi2 = {test['edcl_chi2_best']:.2f}")
-            print(f"  Delta chi2 = {test['delta_chi2']:.2f}")
-    
-    # Summary
+
+    for name, test in tests.items():
+        status = "PASS" if test.get("pass") else "FAIL"
+        print(f"\n{name.upper()}: {status}")
+        print(f"  {test.get('description', '')}")
+
+        if name == "activation":
+            print(f"  alpha_R = {_fmt(test['alpha_R_mean'])} +/- {_fmt(test['alpha_R_std'])}")
+            print(f"  68% interval: [{_fmt(test['alpha_R_q16'])}, {_fmt(test['alpha_R_q84'])}]")
+            print(f"  Lower 68% bound {'>' if test['pass'] else '<='} {test['threshold']}")
+        elif name == "collapse":
+            print(f"  With H0_obs: alpha_R = {_fmt(test['alpha_R_with_h0'])}")
+            print(f"  Without H0_obs: alpha_R = {_fmt(test['alpha_R_without_h0'])}")
+            print(f"  Reduction: {_fmt(test['reduction_percent'], 1)}%")
+        elif name == "h0_match":
+            print(f"  H0_obs = {_fmt(test['H0_obs_mean'], 2)} +/- {_fmt(test['H0_obs_std'], 2)}")
+            print(f"  Riess = {_fmt(test['H0_riess'], 2)} +/- {_fmt(test['sigma_riess'], 2)}")
+            print(f"  Tension: {_fmt(test['tension_sigma'], 2)} sigma")
+        elif name == "chi2_improvement":
+            print(f"  LCDM chi2 = {_fmt(test['lcdm_chi2_best'], 4)}")
+            print(f"  EDCL chi2 = {_fmt(test['edcl_chi2_best'], 4)}")
+            print(f"  Delta chi2 = {_fmt(test['delta_chi2'], 4)}")
+            if test.get("component_delta"):
+                print("  Component deltas where directly matched:")
+                for k, v in test["component_delta"].items():
+                    print(f"    {k}: {_fmt(v, 4)}")
+
+    n_pass = sum(1 for t in tests.values() if t.get("pass"))
+    n_total = len(tests)
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    
-    n_pass = sum(1 for t in tests.values() if t['pass'])
-    n_total = len(tests)
     print(f"\nTests passed: {n_pass}/{n_total}")
-    
-    if n_pass == n_total:
-        print("\nALL VALIDATION TESTS PASS")
+
+    if n_total and n_pass == n_total:
+        print("\nALL STANDALONE CHAIN CHECKS PASS")
         print("Tier-A1 mechanism-activation checks pass; this is not a decisive full Hubble-tension resolution.")
+    elif n_total:
+        print(f"\n{n_total - n_pass} standalone chain check(s) failed.")
+        print("Check whether this is a chain/config issue before interpreting it as physics.")
     else:
-        print(f"\n{n_total - n_pass} test(s) failed")
+        print("\nNo validation tests were available from the discovered chain columns.")
 
 
-def create_plot(results: Dict[str, Dict], output_path: str) -> None:
-    """Create comparison plot of H0 posteriors."""
+def create_plot(results: Dict[str, Dict[str, Any]], output_path: str) -> None:
     try:
         import matplotlib.pyplot as plt
     except ImportError:
         print("matplotlib not available, skipping plot generation")
         return
-    
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Plot LCDM H0
-    if 'lcdm' in results:
-        lcdm = results['lcdm']
-        if 'H0' in lcdm['parameters']:
-            h0 = lcdm['parameters']['H0']
-            ax.axvspan(h0['mean'] - h0['std'], h0['mean'] + h0['std'], 
-                      alpha=0.3, color='blue', label=f'LCDM: {h0["mean"]:.1f} +/- {h0["std"]:.1f}')
-    
-    # Plot EDCL H0_obs
-    if 'edcl_with_h0' in results:
-        edcl = results['edcl_with_h0']
-        if 'H0_obs' in edcl['parameters']:
-            h0 = edcl['parameters']['H0_obs']
-            ax.axvspan(h0['mean'] - h0['std'], h0['mean'] + h0['std'],
-                      alpha=0.3, color='green', label=f'EDCL H0_obs: {h0["mean"]:.1f} +/- {h0["std"]:.1f}')
-    
-    # Plot Riess measurement
-    ax.axvline(73.04, color='red', linestyle='--', linewidth=2, label='Riess (73.04 +/- 1.04)')
-    ax.axvspan(73.04 - 1.04, 73.04 + 1.04, alpha=0.2, color='red')
-    
-    ax.set_xlabel('H0 (km/s/Mpc)', fontsize=12)
-    ax.set_ylabel('Posterior', fontsize=12)
-    ax.set_title('EDCL Tier-A1 H0_obs Mechanism Test', fontsize=14)
-    ax.legend(loc='upper left')
+
+    if "lcdm" in results and "H0" in results["lcdm"].get("parameters", {}):
+        h0 = results["lcdm"]["parameters"]["H0"]
+        ax.axvspan(h0["mean"] - h0["std"], h0["mean"] + h0["std"], alpha=0.3, label=f'LCDM H0: {h0["mean"]:.1f} +/- {h0["std"]:.1f}')
+
+    if "edcl_with_h0" in results and "H0_obs" in results["edcl_with_h0"].get("parameters", {}):
+        h0 = results["edcl_with_h0"]["parameters"]["H0_obs"]
+        ax.axvspan(h0["mean"] - h0["std"], h0["mean"] + h0["std"], alpha=0.3, label=f'EDCL H0_obs: {h0["mean"]:.1f} +/- {h0["std"]:.1f}')
+
+    ax.axvline(RIESS_H0_MEAN, linestyle="--", linewidth=2, label=f"Riess ({RIESS_H0_MEAN:.2f} +/- {RIESS_H0_STD:.2f})")
+    ax.axvspan(RIESS_H0_MEAN - RIESS_H0_STD, RIESS_H0_MEAN + RIESS_H0_STD, alpha=0.2)
+
+    ax.set_xlabel("H0 (km/s/Mpc)", fontsize=12)
+    ax.set_ylabel("Posterior summary band", fontsize=12)
+    ax.set_title("EDCL Tier-A1 H0_obs Mechanism Test", fontsize=14)
+    ax.legend(loc="upper left")
     ax.set_xlim(65, 78)
-    
+
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"\nPlot saved to: {output_path}")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='Analyze EDCL Tier-A validation MCMC chains',
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    
-    parser.add_argument(
-        '-d', '--chains-dir',
-        default='./chains',
-        help='Directory containing chain files (default: ./chains)'
-    )
-    
-    parser.add_argument(
-        '-o', '--output',
-        default=None,
-        help='Output file for JSON results (optional)'
-    )
-    
-    parser.add_argument(
-        '-p', '--plot',
-        action='store_true',
-        help='Generate H0 comparison plot'
-    )
-    
-    parser.add_argument(
-        '--plot-output',
-        default='h0_comparison.png',
-        help='Output path for plot (default: h0_comparison.png)'
-    )
-    
-    args = parser.parse_args()
-    
-    # Find chain files
-    chains_dir = Path(args.chains_dir)
-    if not chains_dir.exists():
-        print(f"ERROR: Chains directory not found: {chains_dir}", file=sys.stderr)
-        sys.exit(1)
-    
-    # Define expected chain files and their configurations
+# ---------------------------------------------------------------------------
+# Discovery and CLI
+# ---------------------------------------------------------------------------
+def find_chains(chains_dir: Path) -> Dict[str, Dict[str, Any]]:
     chain_configs = [
-        # (filename pattern, key, display name, is_edcl)
-        ('lcdm_production.1.txt', 'lcdm', 'LCDM (baseline)', False),
-        ('lcdm_medium.1.txt', 'lcdm', 'LCDM (baseline)', False),
-        ('lcdm_quick.1.txt', 'lcdm', 'LCDM (baseline)', False),
-        ('edcl_production.1.txt', 'edcl_with_h0', 'EDCL (with H0)', True),
-        ('edcl_medium.1.txt', 'edcl_with_h0', 'EDCL (with H0)', True),
-        ('edcl_fixed_test.1.txt', 'edcl_with_h0', 'EDCL (with H0)', True),
-        ('edcl_no_h0_medium.1.txt', 'edcl_no_h0', 'EDCL (no H0)', True),
-        ('edcl_fixed_no_sh0es.1.txt', 'edcl_no_h0', 'EDCL (no H0)', True),
+        ("lcdm_production.1.txt", "lcdm", "LCDM (baseline)", False),
+        ("lcdm_medium.1.txt", "lcdm", "LCDM (baseline)", False),
+        ("lcdm_quick.1.txt", "lcdm", "LCDM (baseline)", False),
+        ("lcdm.1.txt", "lcdm", "LCDM (baseline)", False),
+        ("lcdm_production.1.txt.gz", "lcdm", "LCDM (baseline)", False),
+        ("edcl_production.1.txt", "edcl_with_h0", "EDCL (with H0_obs)", True),
+        ("edcl_medium.1.txt", "edcl_with_h0", "EDCL (with H0_obs)", True),
+        ("edcl_fixed_test.1.txt", "edcl_with_h0", "EDCL (with H0_obs)", True),
+        ("edcl.1.txt", "edcl_with_h0", "EDCL (with H0_obs)", True),
+        ("edcl_production.1.txt.gz", "edcl_with_h0", "EDCL (with H0_obs)", True),
+        ("edcl_no_h0_medium.1.txt", "edcl_no_h0", "EDCL (no local H0)", True),
+        ("edcl_fixed_no_sh0es.1.txt", "edcl_no_h0", "EDCL (no local H0)", True),
+        ("edcl_no_h0.1.txt", "edcl_no_h0", "EDCL (no local H0)", True),
+        ("edcl_no_h0_medium.1.txt.gz", "edcl_no_h0", "EDCL (no local H0)", True),
     ]
-    
-    # Find available chains (prefer production > medium > quick)
-    results = {}
+
+    results: Dict[str, Dict[str, Any]] = {}
     for filename, key, name, is_edcl in chain_configs:
         if key in results:
-            continue  # Already have this type
-        
+            continue
         path = chains_dir / filename
         if path.exists():
             print(f"Loading: {path}")
             results[key] = analyze_chain(str(path), name, is_edcl)
-    
+
+    return results
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Analyze EDCL Tier-A1 validation MCMC chain files.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("-d", "--chains-dir", default="./chains", help="Directory containing chain files.")
+    parser.add_argument("-o", "--output", default=None, help="Output file for JSON results.")
+    parser.add_argument("-p", "--plot", action="store_true", help="Generate H0 comparison plot.")
+    parser.add_argument("--plot-output", default="h0_comparison.png", help="Output path for plot.")
+
+    args = parser.parse_args()
+
+    chains_dir = Path(args.chains_dir)
+    if not chains_dir.exists():
+        print(f"ERROR: Chains directory not found: {chains_dir}", file=sys.stderr)
+        return 1
+
+    results = find_chains(chains_dir)
+
     if not results:
         print(f"ERROR: No chain files found in {chains_dir}", file=sys.stderr)
-        print("Expected files like: lcdm_production.1.txt, edcl_production.1.txt", file=sys.stderr)
-        sys.exit(1)
-    
-    # Run validation tests
+        print("Expected files like: lcdm_production.1.txt, edcl_production.1.txt, edcl_no_h0_medium.1.txt", file=sys.stderr)
+        return 1
+
     tests = run_validation_tests(results)
-    
-    # Print results
     print_results(results, tests)
-    
-    # Save JSON output
+
     if args.output:
         output_data = {
-            'chains': results,
-            'tests': tests,
+            "analysis_type": "standalone_chain_analysis",
+            "claim_boundary": "mechanism activation/collapse only; not decisive full Hubble-tension resolution",
+            "constants": {
+                "RIESS_H0_MEAN": RIESS_H0_MEAN,
+                "RIESS_H0_STD": RIESS_H0_STD,
+                "EDCL_F_NORM": EDCL_F_NORM,
+            },
+            "chains": results,
+            "tests": tests,
         }
-        with open(args.output, 'w') as f:
+        with open(args.output, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2)
         print(f"\nResults saved to: {args.output}")
-    
-    # Generate plot
+
     if args.plot:
         create_plot(results, args.plot_output)
-    
-    # Exit with appropriate code
-    all_pass = all(t['pass'] for t in tests.values()) if tests else False
-    sys.exit(0 if all_pass else 1)
+
+    all_pass = all(t.get("pass") for t in tests.values()) if tests else False
+    return 0 if all_pass else 1
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    raise SystemExit(main())
