@@ -153,7 +153,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
     """
     tests = {}
     
-    # Test 1: Activation - alpha_R significantly non-zero with H0 prior
+    # Test 1: Activation - alpha_R activates with local H0_obs likelihood
     if 'edcl_with_h0' in results:
         edcl = results['edcl_with_h0']
         if 'alpha_R' in edcl['parameters']:
@@ -161,7 +161,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
             # Check if lower 68% bound is above threshold
             threshold = 0.02
             tests['activation'] = {
-                'description': 'alpha_R significantly non-zero with H0 prior',
+                'description': 'alpha_R activates with local H0_obs likelihood',
                 'alpha_R_mean': alpha['mean'],
                 'alpha_R_std': alpha['std'],
                 'alpha_R_q16': alpha['q16'],
@@ -170,7 +170,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
                 'pass': alpha['q16'] > threshold,
             }
     
-    # Test 2: Collapse - alpha_R drops without H0 prior
+    # Test 2: Collapse - alpha_R drops without local H0_obs likelihood
     if 'edcl_with_h0' in results and 'edcl_no_h0' in results:
         with_h0 = results['edcl_with_h0']['parameters'].get('alpha_R', {})
         without_h0 = results['edcl_no_h0']['parameters'].get('alpha_R', {})
@@ -178,7 +178,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
         if with_h0 and without_h0:
             collapse_ratio = without_h0['mean'] / with_h0['mean'] if with_h0['mean'] > 0 else 1.0
             tests['collapse'] = {
-                'description': 'alpha_R collapses without H0 prior',
+                'description': 'alpha_R collapses without local H0_obs likelihood',
                 'alpha_R_with_h0': with_h0['mean'],
                 'alpha_R_without_h0': without_h0['mean'],
                 'collapse_ratio': collapse_ratio,
@@ -186,7 +186,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
                 'pass': collapse_ratio < 0.5,
             }
     
-    # Test 3: H0 match - H0_obs matches Riess measurement
+    # Test 3: H0 match - H0_obs is consistent with the Riess measurement
     if 'edcl_with_h0' in results:
         edcl = results['edcl_with_h0']
         if 'H0_obs' in edcl['parameters']:
@@ -199,7 +199,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
             tension = abs(h0_obs['mean'] - h0_riess) / sigma_combined
             
             tests['h0_match'] = {
-                'description': 'H0_obs matches Riess measurement',
+                'description': 'H0_obs is consistent with the Riess measurement',
                 'H0_obs_mean': h0_obs['mean'],
                 'H0_obs_std': h0_obs['std'],
                 'H0_riess': h0_riess,
@@ -217,7 +217,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
             delta_chi2 = edcl['chi2_best'] - lcdm['chi2_best']
             
             tests['chi2_improvement'] = {
-                'description': 'EDCL improves chi2 vs LCDM',
+                'description': 'EDCL has a lower best-fit chi2 than LCDM in this run',
                 'lcdm_chi2_best': lcdm['chi2_best'],
                 'edcl_chi2_best': edcl['chi2_best'],
                 'delta_chi2': delta_chi2,
@@ -297,6 +297,7 @@ def print_results(results: Dict[str, Dict], tests: Dict[str, Dict]) -> None:
     
     if n_pass == n_total:
         print("\nALL VALIDATION TESTS PASS")
+        print("Tier-A1 mechanism-activation checks pass; this is not a decisive full Hubble-tension resolution.")
     else:
         print(f"\n{n_total - n_pass} test(s) failed")
 
@@ -333,7 +334,7 @@ def create_plot(results: Dict[str, Dict], output_path: str) -> None:
     
     ax.set_xlabel('H0 (km/s/Mpc)', fontsize=12)
     ax.set_ylabel('Posterior', fontsize=12)
-    ax.set_title('EDCL Resolution of Hubble Tension', fontsize=14)
+    ax.set_title('EDCL Tier-A1 H0_obs Mechanism Test', fontsize=14)
     ax.legend(loc='upper left')
     ax.set_xlim(65, 78)
     
