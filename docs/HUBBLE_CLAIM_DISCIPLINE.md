@@ -10,7 +10,8 @@ The current public Tier-A1 validation supports:
 - activation of `alpha_R` with the local `H0_obs` driver;
 - collapse of `alpha_R` when the local driver is removed;
 - a matched observed-frame value `H0_obs = 73.04 ± 0.95` km/s/Mpc;
-- a modest late-only best-fit improvement, `Delta chi2 = -1.0627`.
+- a modest late-only best-fit improvement, `Delta chi2 = -1.0627`;
+- chain-verified best-fit component accounting in `cosmology/results/tierA1_chain_component_audit.json`, where EDCL+H0_obs vs LCDM gives H0/H0_obs = `-1.0182`, BAO = `-0.3150`, and SN = `+0.2705`.
 
 ## Preferred current wording
 
@@ -48,4 +49,4 @@ Do not use stronger significance language unless the statistic is explicitly def
 
 ## Stronger wording target
 
-The goal is to earn stronger Hubble-resolution wording through the claim ladder in `docs/HUBBLE_RESOLUTION_CLAIM_LADDER.md`, especially exact per-likelihood decomposition, robustness scans, fair baselines, and Tier-A2/Planck validation.
+The goal is to earn stronger Hubble-resolution wording through the claim ladder in `docs/HUBBLE_RESOLUTION_CLAIM_LADDER.md`. Best-fit component accounting is now chain-verified, but stronger wording still requires workdir-backed provenance, likelihood ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
