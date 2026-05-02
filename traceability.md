@@ -53,14 +53,16 @@ Canonical current Tier-A1 result card:
 Current Tier-A1 status:
 
 - The current result validates a working `H0_obs` calibration-drift mechanism and activation/collapse behavior in late-only data.
-- Stronger claims require exact component chi2 accounting, ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
+- Best-fit component accounting is chain-verified in `cosmology/results/tierA1_chain_component_audit.json`: EDCL+H0_obs vs LCDM gives `Delta chi2 = -1.0627`, with H0/H0_obs = `-1.0182`, BAO = `-0.3150`, and SN = `+0.2705`.
+- Stronger claims still require workdir-backed provenance, likelihood ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
 
 Tier-A produces:
 
 - preflight plots: `cosmology/paper_artifacts/`
+- chain component audit: `cosmology/results/tierA1_chain_component_audit.json`
 - run output workdir: `edcl_tiera1_YYYYMMDD_HHMMSS/` (not intended for git; publish as a Release asset)
 - optional bundle zip in the workdir (publish as a Release asset)
 
 Next artifact needed:
 
-- exact per-likelihood chi2 decomposition from production-chain likelihood components, or a clearly labeled emulator-derived substitute if chain components are unavailable.
+- timestamped Tier-A workdir artifacts for YAML/config/log/environment provenance, especially `edcl_tiera1_20251221_212236/` and `edcl_tiera1_20251221_212444/`, or regenerated equivalent workdirs.
