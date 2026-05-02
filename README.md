@@ -1,33 +1,43 @@
-# Two‑Perspective validation suite (Tier‑B, Track‑0, Tier‑A)
+# Two-Perspective validation suite
 
-This repository contains the **validation and reproducibility code** for the simulations used in the paper.
+This repository contains validation and reproducibility code for the simulations used in the Two-Perspective / EDCL paper.
 
-It is organized as a **tiered** suite:
+The suite is organized into three tiers:
 
-- **Tier‑B (pure Python, fast):** formalism/kinematics numerical validations that generate the paper’s non‑cosmology figures.
-- **Track‑0 (pure Python, fast):** kernel/consistency checks.
-- **Tier‑A (CLASS + Cobaya, heavier):** late‑only cosmology validation, including MCMC chains and a referee‑oriented validator.
+```text
+Tier-B   pure-Python formalism/kinematics validations
+Track-0  pure-Python kernel/consistency checks
+Tier-A1  CLASS + Cobaya late-only cosmology validation
+```
 
-If you are a referee, start with:
-- `docs/VALIDATION_MATRIX.md` (paper claim → script → artifact)
-- `docs/COLAB_GUIDE.md` (cell-ready commands)
+If you are a reviewer, start with:
 
----
+```text
+docs/VALIDATION_MATRIX.md
+docs/COLAB_GUIDE.md
+docs/HOW_TO_REPRODUCE_TIER_A1_OUTPUTS.md
+traceability.md
+```
 
 ## Repository structure
 
-- `tierB/` — Tier‑B simulation modules (pure Python)
-- `scripts/run_all_tierB.py` — one-command Tier‑B runner (writes `paper_artifacts/`)
-- `track0/` — Track‑0 kernel checks (writes `paper_artifacts/track0/fig_kernel_consistency.png`)
-- `cosmology/` — Tier‑A cosmology (CLASS patching + Cobaya YAML templates + validation scripts)
-- `docs/` — referee-facing documentation
-- `traceability.md` — condensed claim-to-evidence ledger
+```text
+tierB/                         Tier-B simulation modules
+scripts/run_all_tierB.py        one-command Tier-B runner
+track0/                         Track-0 kernel checks
+cosmology/                      Tier-A1 cosmology code, CLASS patch, Cobaya templates, validators
+cosmology/patches/              EDCL CLASS patch
+cosmology/scripts/              Tier-A1 runners, guards, validators
+cosmology/cobaya/               Cobaya YAML templates
+docs/                           reviewer-facing documentation
+traceability.md                 condensed claim-to-evidence ledger
+```
 
-Large Tier‑A outputs (chains/workdirs) are intended to be published as **GitHub Release assets** (see `docs/DATA_AVAILABILITY.md`).
+Large Tier-A1 outputs such as chains, timestamped workdirs, patched CLASS builds, and Cobaya package folders should not be committed to normal git history. Publish heavy reproducibility artifacts as GitHub Release assets when needed.
 
----
+## Quickstart: Tier-B + Track-0
 
-## Quickstart (local, Tier‑B + Track‑0)
+These checks do not require CLASS or Cobaya.
 
 ```bash
 python -m pip install -r requirements.txt
@@ -35,42 +45,177 @@ python scripts/run_all_tierB.py
 python track0/run_track0_kernel_consistency.py
 ```
 
-Outputs:
-- Tier‑B: `paper_artifacts/*.png`, `paper_artifacts/*.txt`
-- Track‑0: `paper_artifacts/track0/fig_kernel_consistency.png`
+Typical outputs:
 
----
-
-## Tier‑A late‑only cosmology validation
-
-Tier‑A is the only part that requires building CLASS and downloading Cobaya likelihood datasets.
-
-Canonical entrypoints:
-- **Colab:** `python COLAB_TIER_A_VALIDATION.py --profile referee`
-- **Local:** `bash RUN_TIER_A_VALIDATION.sh`
-
-After a run, re-run analysis/validation on a given workdir:
-
-```bash
-python cosmology/scripts/analyze_chains.py --workdir <WORKDIR> --profile referee
-python cosmology/scripts/validate_tiera1_lateonly_results.py --workdir <WORKDIR> --profile referee
+```text
+paper_artifacts/*.png
+paper_artifacts/*.txt
+paper_artifacts/track0/fig_kernel_consistency.png
 ```
 
-See:
-- `TIER_A_COMPLETE_DOCUMENTATION.md`
-- `cosmology/docs/H0_LIKELIHOOD_FIX.md`
-- `docs/COLAB_GUIDE.md`
+## Tier-A1 late-only cosmology validation
 
----
+Tier-A1 requires a Linux/Colab/WSL-style environment because it builds CLASS/classy and uses Cobaya likelihood data.
 
-## What to cite / how this maps to the paper
+The canonical Tier-A1 runner is:
 
-- `docs/VALIDATION_MATRIX.md` provides the authoritative mapping.
-- `traceability.md` is the short ledger version.
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate
+```
 
----
+The root shell wrapper delegates to the same runner:
+
+```bash
+bash RUN_TIER_A_VALIDATION.sh
+```
+
+For Google Colab, use:
+
+```text
+docs/COLAB_GUIDE.md
+```
+
+### Setup-only check before MCMC
+
+Before running chains, verify the patch/build/render/guard path:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py \
+  --profile iterate \
+  --skip-mcmc \
+  --no-validate
+```
+
+This should:
+
+```text
+clone upstream CLASS
+apply cosmology/patches/class_edcl.patch
+build CLASS/classy
+run EDCL smoke/preflight checks
+render Tier-A1 YAMLs into the workdir
+check H0-likelihood invariants
+run Cobaya initialization tests
+create a bundle
+```
+
+### Full iterate run
+
+After the setup-only check succeeds:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate
+```
+
+### Referee-grade run
+
+After the iterate run is clean and interpretable:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile referee
+```
+
+The referee profile is stricter and may take substantially longer.
+
+## Tier-A1 H0-likelihood convention
+
+The current Tier-A1 mechanism test enforces the observed-frame H0 convention:
+
+```text
+EDCL + local H0 must use H0_edcl
+EDCL + local H0 must not use H0.riess2020
+EDCL no-H0 must contain no local-H0 likelihood
+LCDM may use direct H0.riess2020
+```
+
+The relevant guard and validator are:
+
+```text
+cosmology/scripts/check_no_doublecount_sh0es.py
+cosmology/scripts/validate_tiera1_lateonly_results.py
+```
+
+The corrected EDCL local-H0 likelihood compares:
+
+```text
+H0_obs = H0 * (1 + alpha_R * 0.7542)
+```
+
+against the local Riess value through `H0_edcl`.
+
+## Re-validating an existing Tier-A1 workdir
+
+Use the validator on a workdir created by the suite runner:
+
+```bash
+python3 cosmology/scripts/validate_tiera1_lateonly_results.py \
+  --workdir <WORKDIR> \
+  --profile iterate
+```
+
+For referee mode:
+
+```bash
+python3 cosmology/scripts/validate_tiera1_lateonly_results.py \
+  --workdir <WORKDIR> \
+  --profile referee
+```
+
+The validator writes:
+
+```text
+<WORKDIR>/results_summary.json
+<WORKDIR>/results_report.md
+```
+
+## Analyzing existing chain files directly
+
+For standalone chain analysis, use `--chains-dir`:
+
+```bash
+python3 cosmology/scripts/analyze_chains.py \
+  --chains-dir <CHAINS_DIR> \
+  --output <OUTPUT_JSON> \
+  --plot
+```
+
+This is separate from the workdir-level Tier-A1 validator.
+
+## What not to commit
+
+Do not commit generated heavy/runtime outputs:
+
+```text
+class_public/
+cobaya_packages/
+chains/
+edcl_tiera1_*/
+bundle_edcl_tiera1.zip
+*.updated.yaml
+__pycache__/
+*.pyc
+```
+
+If chain/workdir artifacts are needed for external reproducibility, attach them to a GitHub Release and document the hashes.
+
+## Key documentation
+
+```text
+docs/VALIDATION_MATRIX.md
+docs/COLAB_GUIDE.md
+docs/HOW_TO_REPRODUCE_TIER_A1_OUTPUTS.md
+docs/DATA_AVAILABILITY.md
+TIER_A_COMPLETE_DOCUMENTATION.md
+cosmology/docs/H0_LIKELIHOOD_FIX.md
+traceability.md
+```
+
+## Claim boundary
+
+Tier-A1 is a mechanism-validation layer. It can test whether the observed-frame `H0_obs` channel activates under the local H0 likelihood and collapses without it.
+
+Tier-A1 alone should not be described as a decisive full Hubble-tension resolution. Stronger claims require additional provenance, likelihood ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
 
 ## License
 
 See `LICENSE`.
-
