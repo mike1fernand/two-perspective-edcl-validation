@@ -123,7 +123,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
         if with_h0 and without_h0:
             ratio = without_h0['mean'] / with_h0['mean'] if with_h0['mean'] > 0 else 1.0
             tests['collapse'] = {
-                'description': 'alpha_R collapses without H0 prior',
+                'description': 'alpha_R collapses without local H0_obs likelihood',
                 'alpha_R_with_h0': with_h0['mean'],
                 'alpha_R_without_h0': without_h0['mean'],
                 'collapse_ratio': ratio,
@@ -149,7 +149,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
         if 'chi2_best' in results['lcdm'] and 'chi2_best' in results['edcl_with_h0']:
             delta = results['edcl_with_h0']['chi2_best'] - results['lcdm']['chi2_best']
             tests['chi2_improvement'] = {
-                'description': 'EDCL improves chi2 vs LCDM',
+                'description': 'EDCL has a lower best-fit chi2 than LCDM in this run',
                 'lcdm_chi2': results['lcdm']['chi2_best'],
                 'edcl_chi2': results['edcl_with_h0']['chi2_best'],
                 'delta_chi2': delta,
