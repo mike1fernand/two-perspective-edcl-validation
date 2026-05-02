@@ -1,109 +1,276 @@
-# Referee-oriented packaging plan (all tiers)
+# Referee-oriented packaging plan
 
-This repository contains a **tiered validation suite** intended to let a referee (or any third party) reproduce:
-- the **Tier‑B** formalism/kinematics simulations (pure Python; fast),
-- the **Track‑0** kernel/FRW consistency checks (pure Python; fast),
-- the **Tier‑A** late‑only cosmology validation (CLASS + Cobaya MCMC; heavier).
+This repository contains a tiered validation suite intended to let a referee or third party reproduce:
 
-The immediate goal of this plan is to ensure the repo is:
-1. **Runnable** from a clean checkout with minimal ambiguity,
-2. **Auditable** (clear mapping from paper claims → code → artifacts),
-3. **Deterministic enough** for validation (seeded where appropriate; acceptance criteria explicit),
-4. **Publishable** (GitHub-ready; large artifacts handled as release assets or LFS).
+```text
+Tier-B   formalism/kinematics simulations, pure Python, fast
+Track-0  kernel/FRW consistency checks, pure Python, fast
+Tier-A1  late-only cosmology validation, CLASS + Cobaya, heavier
+```
 
----
+The packaging goal is:
 
-## A. Inventory and scope control (no hidden assumptions)
+```text
+one canonical path per tier
+clear paper-claim to script to artifact traceability
+no duplicated Tier-A1 workflows
+heavy artifacts outside normal git history
+claim wording matched to completed evidence
+```
 
-1. **Enumerate tiers and entrypoints**
-   - Tier‑B runner: `scripts/run_all_tierB.py`
-   - Track‑0 runner: `track0/run_track0_kernel_consistency.py`
-   - Tier‑A runner (Colab): `COLAB_TIER_A_VALIDATION.py`
-   - Tier‑A runner (local): `RUN_TIER_A_VALIDATION.sh`
-   - Tier‑A analysis/validator: `cosmology/scripts/analyze_chains.py` and `cosmology/scripts/validate_tiera1_lateonly_results.py`
+## A. Canonical entrypoints
 
-2. **Enumerate inputs**
-   - Tier‑B/Track‑0: no external datasets required.
-   - Tier‑A: CLASS source build + Cobaya likelihood datasets (downloaded via `cobaya-install`).
+### Tier-B
 
-3. **Enumerate outputs (canonical locations)**
-   - Tier‑B figures: `paper_artifacts/`
-   - Track‑0 figure: `paper_artifacts/track0/fig_kernel_consistency.png`
-   - Tier‑A preflight figures: `cosmology/paper_artifacts/`
-   - Tier‑A chains: produced into a run/work directory (timestamped) and/or `chains/` depending on runner settings.
-   - Tier‑A validation summary tables: `cosmology/paper_artifacts/` and/or `cosmology/validation/` (see Tier‑A docs).
+Canonical runner:
 
----
+```bash
+python scripts/run_all_tierB.py
+```
 
-## B. “Reproducibility contract” a referee can actually follow
+Primary artifacts:
 
-Create (and keep up-to-date) three documents:
+```text
+paper_artifacts/
+```
 
-1. **Validation Matrix (paper claim → evidence)**
-   - File: `docs/VALIDATION_MATRIX.md`
-   - Contains one row per claim with:
-     - paper section/claim,
-     - script(s) to run,
-     - expected artifact filename(s),
-     - acceptance criterion and where it is checked.
+### Track-0
 
-2. **Execution guide**
-   - Files:
-     - `docs/COLAB_GUIDE.md` (cell-ready commands)
-     - `docs/LOCAL_RUN_GUIDE.md` (developer/local)
-   - Must specify:
-     - OS/CPU assumptions,
-     - Python version,
-     - expected runtime ranges per tier,
-     - what “success” looks like.
+Canonical runner:
 
-3. **Data availability note**
-   - File: `docs/DATA_AVAILABILITY.md`
-   - States what artifacts are committed vs published as release assets (or via Git LFS/Zenodo), including checksums.
+```bash
+python track0/run_track0_kernel_consistency.py
+```
 
----
+Primary artifact:
 
-## C. Engineering requirements (to prevent repeat failures)
+```text
+paper_artifacts/track0/fig_kernel_consistency.png
+```
 
-1. **Path robustness**
-   - All scripts that rely on repository structure must locate the repo root relative to `__file__`, not `os.getcwd()`.
-   - Where appropriate, also accept `--repo-root` as an override.
+### Tier-A1
 
-2. **Single-command entrypoints**
-   - Each tier must have exactly one “canonical” entrypoint.
-   - A top-level convenience wrapper may exist, but should not be the only way.
+Canonical runner:
 
-3. **Explicit exit codes + logs**
-   - Validation scripts must return non-zero on failure and write a human-readable report (`.md`) plus machine-readable summary (`.json`).
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate
+```
 
-4. **Pinned dependencies**
-   - Tier‑B/Track‑0: `requirements.txt` (pure Python).
-   - Tier‑A: pinned Cobaya + explicit CLASS tag + patch hash recorded in logs.
+Setup-only check before MCMC:
 
-5. **Artifact provenance**
-   - For each produced figure/table:
-     - script name,
-     - command line,
-     - git commit hash,
-     - timestamp,
-     - (if applicable) random seed,
-     should be written into a sidecar `*.meta.json`.
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py \
+  --profile iterate \
+  --skip-mcmc \
+  --no-validate
+```
 
----
+Referee profile:
 
-## D. GitHub packaging strategy (what goes where)
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile referee
+```
 
-1. **Commit to the repository**
-   - All source code, templates, configs, and documentation.
-   - Small, stable artifacts that are part of the paper narrative (e.g., Tier‑B figures) *may* be committed if small and deterministic.
+Compatibility wrappers:
 
-2. **Publish as GitHub Release assets (recommended)**
-   - Tier‑A chain outputs and full run bundles.
-   - Any large likelihood/data downloads are *not* redistributed; scripts re-download them.
+```text
+RUN_TIER_A_VALIDATION.sh
+scripts/RUN_TIER_A_VALIDATION.sh
+COLAB_TIER_A_VALIDATION.py
+colab/COLAB_TIER_A_VALIDATION.py
+```
 
-3. **If artifacts exceed GitHub limits**
-   - Use Git LFS for moderately large binaries, or
-   - Archive to Zenodo and cite DOI in the paper (preferred for journals).
+These wrappers should delegate to `cosmology/scripts/run_tiera1_lateonly_suite.py` or, for chain-only legacy validation, `cosmology/scripts/analyze_chains.py`. They should not maintain independent YAML-generation or direct `cobaya-run` logic.
 
-A concrete checklist is provided in `docs/GITHUB_PUBLISH_CHECKLIST.md`.
+## B. Required referee-facing documentation
 
+The minimum documentation set is:
+
+```text
+README.md
+README_SCRIPTS.md
+traceability.md
+docs/VALIDATION_MATRIX.md
+docs/COLAB_GUIDE.md
+docs/HOW_TO_REPRODUCE_TIER_A1_OUTPUTS.md
+docs/TIER_A_ARTIFACT_MANIFEST.md
+docs/DATA_AVAILABILITY.md
+docs/GITHUB_PUBLISH_CHECKLIST.md
+docs/HUBBLE_RESOLUTION_CLAIM_LADDER.md
+docs/HUBBLE_CLAIM_DISCIPLINE.md
+cosmology/docs/H0_LIKELIHOOD_FIX.md
+```
+
+Avoid adding more docs unless they remove ambiguity that cannot be handled in one of these existing files.
+
+## C. Tier-A1 H0_obs configuration contract
+
+The corrected Tier-A1 validation tests the observed-frame local-Hubble channel:
+
+```text
+H0_obs = H0 * (1 + alpha_R * 0.7542)
+```
+
+Configuration rules:
+
+```text
+LCDM + local H0:
+  direct H0.riess2020 is allowed.
+
+EDCL + local H0:
+  H0_edcl is required.
+  direct H0.riess2020 is forbidden.
+  derived H0_obs is required.
+  derived delta0 is required.
+
+EDCL no-H0:
+  H0_edcl is forbidden.
+  direct H0.riess2020 is forbidden.
+```
+
+A stale EDCL+H0 run using direct `H0.riess2020` is a configuration failure, not a physics test of the observed-frame mechanism.
+
+Relevant implementation files:
+
+```text
+cosmology/likelihoods/H0_edcl_func.py
+cosmology/scripts/check_no_doublecount_sh0es.py
+cosmology/scripts/validate_tiera1_lateonly_results.py
+tests/test_h0_obs_likelihood.py
+```
+
+## D. Tier-A1 corrected workdir contract
+
+The canonical runner should write a timestamped workdir such as:
+
+```text
+edcl_tiera1_YYYYMMDD_HHMMSS/
+```
+
+Expected contents:
+
+```text
+manifest.json
+logs/
+yamls/
+chains/
+results_summary.json
+results_report.md
+bundle_edcl_tiera1.zip
+```
+
+Rendered YAMLs should live under:
+
+```text
+<workdir>/yamls/
+```
+
+not under:
+
+```text
+cosmology/cobaya/
+```
+
+## E. What goes in git
+
+Commit:
+
+```text
+source code
+tests
+YAML templates
+CLASS patch files
+small deterministic Tier-B / Track-0 artifacts, if desired
+compact Tier-A1 result summaries
+documentation
+```
+
+Compact Tier-A1 summaries currently expected in git:
+
+```text
+cosmology/results/tierA1_hubble_result_card.json
+cosmology/results/tierA1_chain_component_audit.json
+```
+
+## F. What stays out of git
+
+Do not commit generated heavy/runtime outputs:
+
+```text
+class_public/
+cobaya_packages/
+chains/
+edcl_tiera1_*/
+bundle_edcl_tiera1.zip
+*.updated.yaml
+__pycache__/
+*.pyc
+```
+
+Publish heavy Tier-A1 chain/workdir artifacts as GitHub Release assets if needed for external reproducibility.
+
+## G. Release asset recommendation
+
+A useful release should include a compact Tier-A1 reproducibility zip, for example:
+
+```text
+tierA1_reproducibility_assets.zip
+```
+
+Suggested contents:
+
+```text
+chains/lcdm_production.1.txt
+chains/edcl_production.1.txt
+chains/edcl_no_h0_medium.1.txt
+workdirs/<corrected-run-workdir>/
+checksums/SHA256SUMS.txt
+README_RELEASE_ASSETS.md
+```
+
+If original timestamped workdirs are unavailable, publish available chains plus a regenerated corrected-run workdir bundle and state that the original workdir-backed provenance remains unavailable.
+
+## H. Claim boundary
+
+Current safe claim:
+
+```text
+Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.
+```
+
+Do not present Tier-A1 alone as:
+
+```text
+a decisive full Hubble-tension resolution
+completed Planck compatibility
+decisive model-comparison evidence
+```
+
+Stronger language requires:
+
+```text
+workdir-backed provenance
+likelihood ablations
+kernel/prior/local-anchor robustness scans
+fair baselines
+Tier-A2/Planck validation
+documented Bayesian-evidence provenance, if evidence claims are made
+```
+
+## I. Final publication checklist
+
+Before tagging/releasing:
+
+```text
+1. Run Tier-B.
+2. Run Track-0.
+3. Run tests/test_h0_obs_likelihood.py.
+4. Run Tier-A1 setup-only.
+5. Run Tier-A1 iterate or referee profile.
+6. Confirm H0_edcl invariants in rendered YAMLs.
+7. Confirm results_summary.json and results_report.md exist.
+8. Confirm bundle_edcl_tiera1.zip exists.
+9. Confirm heavy outputs are not committed.
+10. Attach heavy chains/workdirs as Release assets.
+11. Run final claim-discipline search from docs/GITHUB_PUBLISH_CHECKLIST.md.
+```
