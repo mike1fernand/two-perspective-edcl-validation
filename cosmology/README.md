@@ -1,101 +1,347 @@
-# Cosmology reproduction harness (Tier‑A scaffolding)
+# Cosmology reproduction harness
 
-This folder supports a PRD/JCAP‑referee‑grade, **no‑assumptions** reproduction workflow for the paper’s
-TP/EDCL cosmology claims.
+This folder supports the Tier-A1 cosmology reproduction workflow for the TP/EDCL paper.
 
-It is intentionally split into:
+Tier-A1 is the late-only CLASS + Cobaya validation layer for the observed-frame Hubble mechanism. It is heavier than the pure-Python checks because it requires:
 
-- **Track‑0 (math layer)**: kernel‑only background mapping checks (runs anywhere; no external data).
-- **Tier‑B (formalism sanity checks)**: lattice demos (already runnable locally).
-- **Tier‑A (cosmology fits)**: requires **patched CLASS (tested against upstream tag v3.3.4)** + **Cobaya v3.6** +
-  external likelihood datasets.
+```text
+EDCL-patched CLASS/classy
+Cobaya
+external likelihood datasets
+```
 
-This repo **does not** automatically download Planck/DESI/PantheonPlus/H0 datasets. A referee will not accept guessed paths
-or guessed likelihood names; you must install and verify components in the target environment first.
+The current Tier-A1 claim boundary is:
 
-## Critical conventions (avoid common hard failures)
+```text
+Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.
+```
 
-1) **CLASS EDCL toggle is a string**
-   - The patch reads `edcl_on` as a string and checks its first character.
-   - Use:
-     - `edcl_on: 'yes'`  or  `edcl_on: 'no'`
-   - Avoid booleans (`true/false`) to prevent ambiguity across wrappers.
+Do not present Tier-A1 alone as a decisive full Hubble-tension resolution.
 
-2) **Do not pass EDCL‑only CLASS parameters when EDCL is off**
-   - If `edcl_on: 'no'`, do **not** include `alpha_R`, `kappa_tick`, `c4`, `log10_l0`, `edcl_kernel`, `edcl_zeta`, `edcl_ai`.
-   - CLASS will fail with: `Class did not read input parameter(s): ...`
-   - This was a root cause of the “null likelihood / could not find random point” failures.
+## Critical conventions
 
-3) **Cobaya likelihood keys are install‑dependent**
-   - The late‑time keys observed in a working Cobaya 3.6 environment (and suggested by Cobaya itself) are:
-     - `bao.desi_dr2.desi_bao_all`
-     - `sn.pantheonplus`
-     - `H0.riess2020`
-   - If your install differs, do **not** guess: run `cobaya-install <yaml> -p <packages_dir>` and follow the suggestions printed.
+### 1. CLASS EDCL toggle is a string
 
-4) **DESI “full‑shape” likelihood is not enabled by default**
-   - Its key and required data can vary across installs. Enable it only if `cobaya-install` recognizes it in your environment.
+The EDCL CLASS patch expects string-style toggles.
+
+Use:
+
+```yaml
+edcl_on: 'yes'
+```
+
+or:
+
+```yaml
+edcl_on: 'no'
+```
+
+Avoid booleans such as `true` / `false` in YAMLs unless the patch/parser is explicitly changed and re-tested.
+
+### 2. Do not pass EDCL-only CLASS parameters when EDCL is off
+
+If `edcl_on: 'no'`, do not include EDCL-only CLASS parameters such as:
+
+```text
+alpha_R
+kappa_tick
+c4
+log10_l0
+edcl_kernel
+edcl_zeta
+edcl_ai
+```
+
+Plain LCDM CLASS runs should not receive EDCL-only parameters.
+
+### 3. EDCL + local H0 must use H0_edcl
+
+For EDCL+local-H0 runs, the local anchor must be applied to the observed-frame quantity:
+
+```text
+H0_obs = H0 * (1 + alpha_R * 0.7542)
+```
+
+not directly to the sampled theory-frame `H0`.
+
+Correct EDCL local-H0 key:
+
+```text
+H0_edcl
+```
+
+Forbidden in EDCL+local-H0 runs:
+
+```text
+H0.riess2020
+```
+
+The configuration rules are:
+
+```text
+LCDM + local H0:
+  direct H0.riess2020 is allowed.
+
+EDCL + local H0:
+  H0_edcl is required.
+  direct H0.riess2020 is forbidden.
+  derived H0_obs is required.
+  derived delta0 is required.
+
+EDCL no-H0:
+  H0_edcl is forbidden.
+  direct H0.riess2020 is forbidden.
+```
+
+A stale EDCL+H0 YAML using direct `H0.riess2020` is a configuration failure, not a physics test of the observed-frame mechanism.
+
+### 4. Cobaya likelihood keys are install-dependent
+
+The late-time BAO/SN keys observed in a working Cobaya 3.6 environment are:
+
+```text
+bao.desi_dr2.desi_bao_all
+sn.pantheonplus
+```
+
+For LCDM+local-H0 runs, the direct local-H0 key may be:
+
+```text
+H0.riess2020
+```
+
+For EDCL+local-H0 runs, use the custom external likelihood key:
+
+```text
+H0_edcl
+```
+
+If your install differs, do not guess. Run `cobaya-install <yaml> -p <packages_dir>` and follow Cobaya’s suggestions for external BAO/SN likelihood names.
+
+### 5. DESI full-shape likelihood is not enabled by default
+
+DESI full-shape likelihood keys and data requirements vary by install. Enable full-shape only if `cobaya-install` recognizes the likelihood in your environment.
+
+## Key files
+
+EDCL CLASS patch:
+
+```text
+cosmology/patches/class_edcl.patch
+```
+
+Tier-A1 runner:
+
+```text
+cosmology/scripts/run_tiera1_lateonly_suite.py
+```
+
+YAML renderer:
+
+```text
+cosmology/scripts/render_yamls.py
+```
+
+H0 guard and validator:
+
+```text
+cosmology/scripts/check_no_doublecount_sh0es.py
+cosmology/scripts/validate_tiera1_lateonly_results.py
+```
+
+Canonical H0 formula helper:
+
+```text
+cosmology/likelihoods/H0_edcl_func.py
+```
 
 ## Templates
 
-Cobaya YAML templates live in `cosmology/cobaya/*.yaml.in`.
+Cobaya YAML templates live in:
 
-- `lcdm_lateonly.yaml.in`: BAO + PantheonPlus + H0 prior (fast smoke test)
-- `edcl_cosmo_lateonly.yaml.in`: same, with EDCL enabled
-- `edcl_cosmo_lateonly_no_sh0es.yaml.in`: late‑time EDCL (BAO+SN) without an explicit H0 likelihood
-- `lcdm_full.yaml.in`: Planck 2018 + BAO + PantheonPlus + H0 prior (requires clik)
-- `edcl_cosmo_full.yaml.in`: same, with EDCL enabled
-- `edcl_cosmo_no_sh0es.yaml.in`: full stack (Planck+BAO+SN) without an explicit H0 likelihood
-
-## Rendering YAMLs without assumptions
-
-Render templates by substituting the CLASS path and per‑run output directory:
-
-```bash
-python cosmology/scripts/render_yamls.py --class-path /path/to/class_public --out-root chains
+```text
+cosmology/cobaya/*.yaml.in
 ```
 
+Late-only templates:
 
-## Tier-A1 late-time suite runner (automated, referee-safe)
+```text
+lcdm_lateonly.yaml.in
+  LCDM BAO + PantheonPlus + direct local H0.
 
-For the late-time Phase-1 EDCL validation suite (BAO+SN(+H0)), use:
+edcl_cosmo_lateonly.yaml.in
+  EDCL BAO + PantheonPlus + custom observed-frame H0_edcl.
 
-```bash
-python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate   # (alias: smoke)
+edcl_cosmo_lateonly_no_sh0es.yaml.in
+  EDCL BAO + PantheonPlus with no local-H0 likelihood.
 ```
 
-For a referee-grade run (larger chains / more stable quantiles):
+Full-stack templates:
+
+```text
+lcdm_full.yaml.in
+  Planck 2018 + BAO + PantheonPlus + direct local H0.
+
+edcl_cosmo_full.yaml.in
+  EDCL Planck 2018 + BAO + PantheonPlus + custom observed-frame H0_edcl.
+
+edcl_cosmo_no_sh0es.yaml.in
+  EDCL Planck 2018 + BAO + PantheonPlus with no local-H0 likelihood.
+```
+
+## Rendering YAMLs
+
+Render templates by substituting the CLASS path and per-run output directory.
+
+Legacy source-tree rendering:
+
+```bash
+python cosmology/scripts/render_yamls.py \
+  --class-path /path/to/class_public \
+  --out-root chains
+```
+
+No-clutter workdir rendering:
+
+```bash
+python cosmology/scripts/render_yamls.py \
+  --class-path /path/to/class_public \
+  --out-root <workdir>/chains \
+  --yaml-dir <workdir>/yamls
+```
+
+The corrected Tier-A1 runner uses the no-clutter workdir path.
+
+## Tier-A1 automated suite runner
+
+Use a Linux/Colab/WSL-style environment.
+
+Setup-only check before MCMC:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py \
+  --profile iterate \
+  --skip-mcmc \
+  --no-validate
+```
+
+Full iterate run:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate
+```
+
+Referee run:
 
 ```bash
 python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile referee
 ```
 
-### What the runner does
+The root shell wrapper delegates to this same runner:
+
+```bash
+bash RUN_TIER_A_VALIDATION.sh
+```
+
+## What the runner does
+
 The suite runner performs, in order:
 
-1. Install dependencies (apt + pip) unless skipped.
-2. Clone CLASS, select a deterministic tag (prefers `v3.3.4`), apply `cosmology/patches/class_edcl.patch`, build `classy`.
-3. Run Tier-A0 preflight scripts (patched background sanity).
-4. Render late-only YAMLs from templates (`cosmology/scripts/render_yamls.py`).
-5. Run the SH0ES/H0 double-count guard.
-6. Run `cobaya-install` from the rendered YAMLs (no hand-typed likelihood guessing).
-7. Run `cobaya-run --test` (fast init-only check), then full `cobaya-run`.
-8. Run the validator and include its reports in the final bundle.
+```text
+install dependencies unless skipped
+clone CLASS
+prefer CLASS tag v3.3.4 when available
+apply cosmology/patches/class_edcl.patch
+build CLASS/classy
+run EDCL smoke/preflight checks
+render late-only YAMLs into <workdir>/yamls/
+check H0-likelihood invariants before MCMC
+run the local-H0 / SH0ES guard
+run cobaya-install from the rendered YAMLs
+check updated/preferred YAMLs after Cobaya install
+run cobaya-run --test
+run cobaya-run MCMC unless skipped
+run the Tier-A1 validator
+write manifest.json
+bundle logs, YAMLs, chains, and reports
+```
 
-### Validation (pre-registered thresholds)
-Validation criteria are defined by:
+Expected corrected workdir layout:
 
-- `cosmology/paper_artifacts/validation_spec.md` (human-readable rationale)
-- `cosmology/config/validation_config.yaml` (authoritative numerical thresholds)
+```text
+<workdir>/manifest.json
+<workdir>/logs/
+<workdir>/yamls/
+<workdir>/chains/
+<workdir>/results_summary.json
+<workdir>/results_report.md
+<workdir>/bundle_edcl_tiera1.zip
+```
+
+## Validation
 
 Validator script:
 
 ```bash
-python3 cosmology/scripts/validate_tiera1_lateonly_results.py --workdir <WORKDIR> --profile smoke
+python3 cosmology/scripts/validate_tiera1_lateonly_results.py \
+  --workdir <WORKDIR> \
+  --profile iterate
+```
+
+For referee mode:
+
+```bash
+python3 cosmology/scripts/validate_tiera1_lateonly_results.py \
+  --workdir <WORKDIR> \
+  --profile referee
 ```
 
 Outputs:
-- `<WORKDIR>/results_summary.json`
-- `<WORKDIR>/results_report.md`
 
-These are included in `<WORKDIR>/bundle_edcl_tiera1.zip`.
+```text
+<WORKDIR>/results_summary.json
+<WORKDIR>/results_report.md
+```
+
+These are included in:
+
+```text
+<WORKDIR>/bundle_edcl_tiera1.zip
+```
+
+## Existing chain-file analysis
+
+For standalone chain files, use:
+
+```bash
+python3 cosmology/scripts/analyze_chains.py \
+  --chains-dir <chains_dir> \
+  --output tierA1_chain_verification.json \
+  --plot
+```
+
+This is separate from the workdir-level validator.
+
+## Heavy outputs
+
+Do not commit generated heavy/runtime outputs:
+
+```text
+class_public/
+cobaya_packages/
+chains/
+edcl_tiera1_*/
+bundle_edcl_tiera1.zip
+*.updated.yaml
+```
+
+Publish heavy chain/workdir artifacts as GitHub Release assets if needed for external reproducibility.
+
+## Related docs
+
+```text
+docs/COLAB_GUIDE.md
+docs/HOW_TO_REPRODUCE_TIER_A1_OUTPUTS.md
+docs/TIER_A_ARTIFACT_MANIFEST.md
+cosmology/docs/H0_LIKELIHOOD_FIX.md
+```
