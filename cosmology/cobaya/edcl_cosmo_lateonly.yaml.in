@@ -1,23 +1,34 @@
 # edcl_cosmo_lateonly.yaml.in
 #
-# Late-time-only dataset combination (fast smoke test): DESI BAO + PantheonPlus + Riess2020 H0.
+# Late-time-only EDCL dataset combination (fast mechanism test):
+# DESI BAO + PantheonPlus + custom observed-frame H0_obs likelihood.
 #
 # CRITICAL:
 #   When EDCL is ON, the patched CLASS build reads these extra parameters:
 #     alpha_R, kappa_tick, c4, log10_l0, edcl_kernel, edcl_zeta, edcl_ai
 #
-# Likelihood keys below reflect Cobaya 3.6 suggestions observed in one working environment:
+# H0 likelihood convention:
+#   EDCL must not use the standard direct Riess H0 likelihood in this run.
+#   Instead, compare the observed-frame quantity
+#     H0_obs = H0 * (1 + alpha_R * 0.7542)
+#   to the local Riess value using the custom H0_edcl likelihood below.
+#
+# Likelihood keys below reflect Cobaya 3.6 suggestions observed in one working environment
+# for the external BAO/SN data:
 #   - bao.desi_dr2.desi_bao_all
 #   - sn.pantheonplus
-#   - H0.riess2020
 #
 # If your install differs, do not guess: run cobaya-install on the rendered YAML and follow
-# the "Did you mean ..." suggestions printed by Cobaya.
+# the "Did you mean ..." suggestions printed by Cobaya for the external BAO/SN likelihoods.
 
 likelihood:
   bao.desi_dr2.desi_bao_all: null
   sn.pantheonplus: null
-  H0.riess2020: null
+
+  # Custom EDCL-aware H0 likelihood:
+  # compares H0_obs = H0 * (1 + delta0) to the Riess measurement.
+  H0_edcl:
+    external: "lambda H0, alpha_R: -0.5 * ((H0 * (1.0 + alpha_R * 0.7542) - 73.04) / 1.04) ** 2"
 
 theory:
   classy:
@@ -48,6 +59,13 @@ params:
     prior: {min: 0.0, max: 0.2}
     ref: 0.02
     proposal: 0.01
+
+  # Observed-frame local Hubble quantity used by the custom H0_edcl likelihood.
+  H0_obs:
+    derived: 'lambda H0, alpha_R: H0 * (1.0 + alpha_R * 0.7542)'
+
+  delta0:
+    derived: 'lambda alpha_R: alpha_R * 0.7542'
 
 output: __OUTPUT_DIR__
 
