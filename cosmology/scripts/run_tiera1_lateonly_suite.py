@@ -8,12 +8,13 @@ Design goals:
 - ZERO hand-typed likelihood guessing: always run cobaya-install from the rendered YAMLs.
 - Hard separation of LCDM vs EDCL CLASS inputs.
 - Deterministic CLASS checkout: prefer v3.3.4 if available; else highest semver tag.
-- Fail-fast on build/patch/preflight; forensic logs for every command.
+- Fail-fast on build/patch/preflight and on YAML H0-likelihood invariants before MCMC.
+- Forensic logs for every command.
 - End-to-end bundle zip suitable for a referee (manifest + logs + YAMLs + updated YAMLs + validator reports).
 
 What it runs (late-time only):
-  1) LCDM late-only (BAO+SN+H0)
-  2) EDCL late-only (BAO+SN+H0)
+  1) LCDM late-only (BAO+SN+direct local H0)
+  2) EDCL late-only (BAO+SN+custom observed-frame H0_obs likelihood)
   3) EDCL late-only (BAO+SN only; no explicit H0)  [no-H0 collapse test]
 
 It also runs Tier-A0 preflight scripts:
@@ -79,7 +80,7 @@ def _is_colab() -> bool:
 
 
 def _print_cmd(args: List[str]) -> str:
-    # For printing only; do not execute via shell
+    # For printing only; do not execute via shell.
     out = []
     for a in args:
         if re.fullmatch(r"[A-Za-z0-9_/@%+=:,.\-]+", a):
@@ -167,6 +168,145 @@ def _resolve_updated_yaml(path: str) -> str:
     return path
 
 
+def _write_json(path: str, obj: Any) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2, sort_keys=True)
+
+
+def _load_yaml(path: str) -> Dict[str, Any]:
+    if yaml is None:
+        raise RuntimeError("PyYAML required for YAML invariant checks (pip install pyyaml).")
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        raise RuntimeError(f"YAML root is not a dictionary: {path}")
+    return data
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"yes", "true", "1", "on"}
+    return False
+
+
+def _is_direct_h0_key(key: str) -> bool:
+    kl = str(key).strip().lower()
+    if kl.startswith("h0."):
+        return True
+    if kl == "sh0es" or kl.startswith("sh0es."):
+        return True
+    return False
+
+
+def _is_edcl_h0_key(key: str) -> bool:
+    return str(key).strip().lower() == "h0_edcl"
+
+
+def _is_edcl_enabled(cfg: Dict[str, Any]) -> bool:
+    theory = cfg.get("theory", {})
+    if not isinstance(theory, dict):
+        return False
+    classy = theory.get("classy", {})
+    if not isinstance(classy, dict):
+        return False
+    extra_args = classy.get("extra_args", {})
+    if not isinstance(extra_args, dict):
+        return False
+    return _truthy(extra_args.get("edcl_on", False))
+
+
+def _check_class_path_in_yaml(cfg: Dict[str, Any], expected_class_dir: str, yaml_path: str) -> None:
+    theory = cfg.get("theory", {})
+    classy = theory.get("classy", {}) if isinstance(theory, dict) else {}
+    path = classy.get("path") if isinstance(classy, dict) else None
+    if not isinstance(path, str) or not path:
+        raise RuntimeError(f"{yaml_path}: theory.classy.path is missing or not a string")
+    if os.path.abspath(path) != os.path.abspath(expected_class_dir):
+        raise RuntimeError(
+            f"{yaml_path}: theory.classy.path points to {path!r}, expected patched CLASS path {expected_class_dir!r}"
+        )
+
+
+def check_h0_likelihood_invariant(yaml_path: str, mode: str, expected_class_dir: Optional[str] = None) -> None:
+    """Fail fast if a rendered/updated YAML uses the wrong H0 convention.
+
+    Modes:
+      lcdm_h0      : LCDM with one direct local-H0 likelihood.
+      edcl_h0obs   : EDCL with custom H0_edcl and no direct local-H0 likelihood.
+      edcl_noh0    : EDCL with no local-H0 likelihood at all.
+    """
+    cfg = _load_yaml(yaml_path)
+    like = cfg.get("likelihood", {})
+    if not isinstance(like, dict) or not like:
+        raise RuntimeError(f"{yaml_path}: missing likelihood dictionary")
+
+    keys = [str(k) for k in like.keys()]
+    direct_h0 = [k for k in keys if _is_direct_h0_key(k)]
+    edcl_h0 = [k for k in keys if _is_edcl_h0_key(k)]
+    edcl_enabled = _is_edcl_enabled(cfg)
+
+    if expected_class_dir is not None:
+        _check_class_path_in_yaml(cfg, expected_class_dir, yaml_path)
+
+    if mode == "lcdm_h0":
+        if edcl_enabled:
+            raise RuntimeError(f"{yaml_path}: LCDM run has edcl_on enabled")
+        if edcl_h0:
+            raise RuntimeError(f"{yaml_path}: LCDM run must not use H0_edcl")
+        if len(direct_h0) != 1:
+            raise RuntimeError(f"{yaml_path}: LCDM H0 run should have exactly one direct local-H0 likelihood, found {direct_h0}")
+        return
+
+    if mode == "edcl_h0obs":
+        if not edcl_enabled:
+            raise RuntimeError(f"{yaml_path}: EDCL H0_obs run does not have edcl_on enabled")
+        if direct_h0:
+            raise RuntimeError(f"{yaml_path}: EDCL H0_obs run must not use direct local-H0 likelihood(s): {direct_h0}")
+        if len(edcl_h0) != 1:
+            raise RuntimeError(f"{yaml_path}: EDCL H0_obs run must use exactly one H0_edcl likelihood, found {edcl_h0}")
+
+        params = cfg.get("params", {})
+        if not isinstance(params, dict):
+            raise RuntimeError(f"{yaml_path}: missing params dictionary")
+        if "H0_obs" not in params:
+            raise RuntimeError(f"{yaml_path}: EDCL H0_obs run is missing derived parameter H0_obs")
+        if "delta0" not in params:
+            raise RuntimeError(f"{yaml_path}: EDCL H0_obs run is missing derived parameter delta0")
+        return
+
+    if mode == "edcl_noh0":
+        if not edcl_enabled:
+            raise RuntimeError(f"{yaml_path}: EDCL no-H0 run does not have edcl_on enabled")
+        if direct_h0 or edcl_h0:
+            raise RuntimeError(f"{yaml_path}: EDCL no-H0 run must not use any local-H0 likelihood; found {direct_h0 + edcl_h0}")
+        return
+
+    raise RuntimeError(f"Unknown H0 invariant mode: {mode}")
+
+
+def check_tiera1_yaml_set(yamls_dir: str, expected_class_dir: str, *, use_updated: bool = False) -> Dict[str, str]:
+    specs = {
+        "lcdm_lateonly.yaml": "lcdm_h0",
+        "edcl_cosmo_lateonly.yaml": "edcl_h0obs",
+        "edcl_cosmo_lateonly_no_sh0es.yaml": "edcl_noh0",
+    }
+    checked: Dict[str, str] = {}
+    for name, mode in specs.items():
+        path = os.path.join(yamls_dir, name)
+        if use_updated:
+            path = _resolve_updated_yaml(path)
+        if not os.path.exists(path):
+            raise RuntimeError(f"Expected YAML not found: {path}")
+        check_h0_likelihood_invariant(path, mode, expected_class_dir=expected_class_dir)
+        checked[name] = path
+    return checked
+
+
 # ----------------------------
 # Main runner
 # ----------------------------
@@ -187,11 +327,11 @@ def main() -> int:
     ap.add_argument("--self-test-only", action="store_true", help="Only run lint-style self checks (no CLASS/Cobaya).")
     args = ap.parse_args()
 
-    # Robust: locate repo root from this script's location (not the current working directory)
+    # Robust: locate repo root from this script's location (not the current working directory).
     repo_root = find_repo_root(str(pathlib.Path(__file__).resolve().parent))
     print("[INFO] Repo root:", repo_root)
 
-    # Profile defaults (runner-side)
+    # Profile defaults (runner-side).
     default_max_samples = 20000 if args.profile in ("iterate", "smoke") else 100000
 
     stamp = _utc_stamp()
@@ -209,28 +349,51 @@ def main() -> int:
     os.makedirs(chains_dir, exist_ok=True)
     os.makedirs(pkgs_dir, exist_ok=True)
 
+    manifest_path = os.path.join(work, "manifest.json")
     manifest: Dict[str, Any] = {
         "timestamp_utc": stamp,
         "profile": args.profile,
         "repo_root": repo_root,
+        "workdir": work,
+        "logs": logs,
+        "yamls": yamls_dir,
+        "chains": chains_dir,
+        "cobaya_packages": pkgs_dir,
         "steps": [],
     }
 
-    def step(name: str, fn):
+    def write_manifest() -> None:
+        _write_json(manifest_path, manifest)
+
+    write_manifest()
+
+    def step(name: str, fn, *, continue_on_failure: bool = False) -> Dict[str, Any]:
         print("\n" + "=" * 80)
         print("STEP:", name)
         print("=" * 80)
-        rec = {"name": name, "ok": False}
+        rec: Dict[str, Any] = {"name": name, "ok": False}
         try:
-            fn()
-            rec["ok"] = True
+            result = fn()
+            if isinstance(result, dict):
+                rec.update(result)
+                rec["ok"] = bool(rec.get("ok", True))
+            elif result is False:
+                rec["ok"] = False
+            else:
+                rec["ok"] = True
+
+            if not rec["ok"] and not continue_on_failure:
+                raise RuntimeError(f"Step reported failure: {name}")
         except Exception as e:
             rec["ok"] = False
             rec["error"] = str(e)
             print("\n[FAIL]", e)
-            raise
+            if not continue_on_failure:
+                raise
         finally:
             manifest["steps"].append(rec)
+            write_manifest()
+        return rec
 
     if args.self_test_only:
         # We rely on scripts/lint_pack.py for the deterministic self-test suite.
@@ -262,6 +425,7 @@ def main() -> int:
     class_dir = os.path.join(work, "class_public")
     patch_path = os.path.join(repo_root, "cosmology", "patches", "class_edcl.patch")
     manifest["patch_md5"] = md5_file(patch_path)
+    write_manifest()
 
     def build_class():
         nonlocal class_dir
@@ -270,6 +434,8 @@ def main() -> int:
                 raise RuntimeError("--skip-class-build requires --class-path /path/to/class_public")
             class_dir = args.class_path
             print("[INFO] Using existing CLASS path:", class_dir)
+            manifest["class_dir"] = class_dir
+            write_manifest()
             return
 
         run_cmd(["git", "clone", "https://github.com/lesgourg/class_public.git", class_dir],
@@ -284,6 +450,8 @@ def main() -> int:
         run_cmd(["git", "checkout", "-f", chosen], cwd=class_dir, log_path=os.path.join(logs, "13_git_checkout.log"))
         manifest["class_commit"] = run_cmd(["git", "rev-parse", "HEAD"], cwd=class_dir, log_path=os.path.join(logs, "14_git_commit.log")).stdout.strip()
         manifest["class_describe"] = run_cmd(["git", "describe", "--tags", "--always", "--dirty"], cwd=class_dir, log_path=os.path.join(logs, "15_git_describe.log")).stdout.strip()
+        manifest["class_dir"] = class_dir
+        write_manifest()
 
         val_script = os.path.join(repo_root, "cosmology", "scripts", "validate_patch.py")
         run_cmd([sys.executable, val_script, patch_path], cwd=repo_root, log_path=os.path.join(logs, "16_validate_patch.log"))
@@ -344,7 +512,7 @@ def main() -> int:
                 raise RuntimeError(f"Expected rendered YAML not found: {src}")
             shutil.copy2(src, os.path.join(yamls_dir, name))
 
-        # Default run length by profile if not overridden
+        # Default run length by profile if not overridden.
         max_samples = int(args.mcmc_max_samples or default_max_samples)
         if max_samples > 0:
             if yaml is None:
@@ -358,12 +526,26 @@ def main() -> int:
 
     step("Render Tier-A1 late-only YAMLs", render_yamls)
 
+    def check_rendered_yamls():
+        checked = check_tiera1_yaml_set(yamls_dir, class_dir, use_updated=False)
+        print("[PASS] Rendered YAML H0-likelihood invariants satisfied.")
+        for name, path in checked.items():
+            print(f" - {name}: {path}")
+        return {"checked_yamls": checked}
+
+    step("Check rendered Tier-A1 H0-likelihood invariants", check_rendered_yamls)
+
     def run_guard():
         guard = os.path.join(repo_root, "cosmology", "scripts", "check_no_doublecount_sh0es.py")
-        run_cmd([sys.executable, guard, os.path.join(yamls_dir, "edcl_cosmo_lateonly.yaml")],
-                cwd=repo_root, log_path=os.path.join(logs, "45_guard_no_doublecount.log"))
+        checked: Dict[str, str] = {}
+        for name in ["lcdm_lateonly.yaml", "edcl_cosmo_lateonly.yaml", "edcl_cosmo_lateonly_no_sh0es.yaml"]:
+            path = os.path.join(yamls_dir, name)
+            run_cmd([sys.executable, guard, path],
+                    cwd=repo_root, log_path=os.path.join(logs, f"45_guard_{name}.log"))
+            checked[name] = path
+        return {"guarded_yamls": checked}
 
-    step("Run SH0ES double-count guard", run_guard)
+    step("Run local-H0 / SH0ES guard on rendered YAMLs", run_guard)
 
     def cobaya_install():
         if args.skip_cobaya_install:
@@ -375,6 +557,15 @@ def main() -> int:
                     cwd=repo_root, log_path=os.path.join(logs, f"50_cobaya_install_{name}.log"))
 
     step("cobaya-install datasets for Tier-A1", cobaya_install)
+
+    def check_updated_yamls():
+        checked = check_tiera1_yaml_set(yamls_dir, class_dir, use_updated=True)
+        print("[PASS] Updated/preferred YAML H0-likelihood invariants satisfied.")
+        for name, path in checked.items():
+            print(f" - {name}: {path}")
+        return {"checked_yamls": checked}
+
+    step("Check updated Tier-A1 H0-likelihood invariants", check_updated_yamls)
 
     def cobaya_test_suite():
         # Prefer updated YAMLs after installation to avoid key drift.
@@ -399,14 +590,33 @@ def main() -> int:
     def run_validator():
         if args.no_validate:
             print("[INFO] Skipping validator (per flag).")
-            return
+            manifest["validator_exit_code"] = None
+            manifest["validation_status"] = "skipped"
+            write_manifest()
+            return {"ok": True, "validation_status": "skipped", "validator_exit_code": None}
+
         val = os.path.join(repo_root, "cosmology", "scripts", "validate_tiera1_lateonly_results.py")
         p = run_cmd([sys.executable, val, "--workdir", work, "--profile", args.profile],
                     cwd=repo_root, log_path=os.path.join(logs, "70_validate_tiera1.log"), check=False)
         manifest["validator_exit_code"] = p.returncode
 
+        if p.returncode == 0:
+            status = "pass"
+            ok = True
+            print("[OK] Tier-A1 validation: PASS")
+        elif p.returncode == 1:
+            status = "warn"
+            ok = True
+            print("[WARN] Tier-A1 validation: WARN (see results_report.md)")
+        else:
+            status = "fail"
+            ok = False
+            print(f"[FAIL] Tier-A1 validation: FAIL (exit code {p.returncode}). See logs/70_validate_tiera1.log and results_report.md")
 
-        # Copy validation artifacts to /content for easy download in Colab
+        manifest["validation_status"] = status
+        write_manifest()
+
+        # Copy validation artifacts to /content for easy download in Colab.
         try:
             if os.path.isdir("/content"):
                 for fn in ["results_report.md", "results_summary.json"]:
@@ -417,21 +627,12 @@ def main() -> int:
         except Exception as e:
             print(f"[WARN] Could not copy validation artifacts to /content: {e}")
 
+        return {"ok": ok, "validation_status": status, "validator_exit_code": p.returncode}
 
-        if p.returncode == 0:
-            print("[OK] Tier-A1 validation: PASS")
-        elif p.returncode == 1:
-            print("[WARN] Tier-A1 validation: WARN (see results_report.md)")
-        else:
-            print(f"[FAIL] Tier-A1 validation: FAIL (exit code {p.returncode}). See logs/70_validate_tiera1.log and results_report.md")
-
-
-    step("Validate Tier-A1 outputs", run_validator)
+    step("Validate Tier-A1 outputs", run_validator, continue_on_failure=True)
 
     def bundle():
-        man_path = os.path.join(work, "manifest.json")
-        with open(man_path, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=2)
+        write_manifest()
 
         bundle_path = os.path.join(work, "bundle_edcl_tiera1.zip")
         if os.path.exists(bundle_path):
@@ -459,7 +660,7 @@ def main() -> int:
                 else:
                     z.write(p, arcname=rel)
 
-            # Also include repo-side cosmology artifacts (preflight plots, AI probe logs, validation spec, etc.)
+            # Also include repo-side cosmology artifacts (preflight plots, AI probe logs, validation spec, etc.).
             # We include the cosmology/paper_artifacts tree, not the root paper_artifacts.
             cpa = os.path.join(repo_root, "cosmology", "paper_artifacts")
             if os.path.exists(cpa):
@@ -469,9 +670,17 @@ def main() -> int:
                         arc = os.path.join("repo", os.path.relpath(full, repo_root))
                         z.write(full, arcname=arc)
 
+        manifest["bundle_path"] = bundle_path
+        write_manifest()
+
+        # Re-open the bundle and update manifest inside it with bundle_path.
+        with zipfile.ZipFile(bundle_path, "a", compression=zipfile.ZIP_DEFLATED) as z:
+            z.writestr("manifest.json", json.dumps(manifest, indent=2, sort_keys=True))
+
         print("\nCreated bundle:", bundle_path)
         print("[INFO] Bundle location:", bundle_path)
         print("[INFO] In Colab: open the Files pane (left sidebar) and download the bundle from that path.")
+        return {"bundle_path": bundle_path}
 
     step("Bundle outputs", bundle)
 
