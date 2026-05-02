@@ -40,6 +40,7 @@ Primary validation scripts:
 Primary Tier-A documentation:
 
 - `TIER_A_COMPLETE_DOCUMENTATION.md`
+- `docs/HOW_TO_REPRODUCE_TIER_A1_OUTPUTS.md`
 - `cosmology/docs/H0_LIKELIHOOD_FIX.md`
 - `docs/HUBBLE_RESOLUTION_CLAIM_LADDER.md`
 - `docs/HUBBLE_CLAIM_DISCIPLINE.md`
