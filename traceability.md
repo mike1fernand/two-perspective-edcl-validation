@@ -25,27 +25,59 @@ This file maps paper elements to code paths and artifacts. For the expanded tabl
 
 ---
 
-## Tier-A late-only cosmology validation
+## Tier-A1 late-only cosmology validation
 
 Canonical entrypoints:
 
-- Colab: `COLAB_TIER_A_VALIDATION.py`
-- Local: `RUN_TIER_A_VALIDATION.sh`
+- Colab / local Python: `cosmology/scripts/run_tiera1_lateonly_suite.py`
+- Shell wrapper: `RUN_TIER_A_VALIDATION.sh`
+- Colab instructions: `docs/COLAB_GUIDE.md`
 
-Primary validation scripts:
+Canonical run sequence:
 
-- `cosmology/scripts/analyze_chains.py`
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py \
+  --profile iterate \
+  --skip-mcmc \
+  --no-validate
+```
+
+Then, after setup-only checks pass:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile iterate
+```
+
+For a stricter run:
+
+```bash
+python3 cosmology/scripts/run_tiera1_lateonly_suite.py --profile referee
+```
+
+Primary validation / guard scripts:
+
+- `cosmology/scripts/smoke_test_classy_edcl.py`
+- `cosmology/scripts/check_no_doublecount_sh0es.py`
 - `cosmology/scripts/validate_tiera1_lateonly_results.py`
+- `cosmology/scripts/analyze_chains.py` for standalone chain-file analysis with `--chains-dir`
 
 Primary Tier-A documentation:
 
 - `TIER_A_COMPLETE_DOCUMENTATION.md`
 - `docs/HOW_TO_REPRODUCE_TIER_A1_OUTPUTS.md`
+- `docs/COLAB_GUIDE.md`
 - `cosmology/docs/H0_LIKELIHOOD_FIX.md`
 - `docs/HUBBLE_RESOLUTION_CLAIM_LADDER.md`
 - `docs/HUBBLE_CLAIM_DISCIPLINE.md`
 - `docs/TIER_A_ARTIFACT_MANIFEST.md`
 - `docs/HUBBLE_FIGURE_TRACEABILITY.md`
+
+EDCL local-H0 convention enforced by the corrected Tier-A1 path:
+
+- EDCL + local H0 must use `H0_edcl`.
+- EDCL + local H0 must not use `H0.riess2020`.
+- EDCL no-H0 must contain no local-H0 likelihood.
+- LCDM may use direct `H0.riess2020`.
 
 Canonical current Tier-A1 result card:
 
@@ -57,13 +89,18 @@ Current Tier-A1 status:
 - Best-fit component accounting is chain-verified in `cosmology/results/tierA1_chain_component_audit.json`: EDCL+H0_obs vs LCDM gives `Delta chi2 = -1.0627`, with H0/H0_obs = `-1.0182`, BAO = `-0.3150`, and SN = `+0.2705`.
 - Stronger claims still require workdir-backed provenance, likelihood ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
 
-Tier-A produces:
+Tier-A1 produces:
 
-- preflight plots: `cosmology/paper_artifacts/`
-- chain component audit: `cosmology/results/tierA1_chain_component_audit.json`
-- run output workdir: `edcl_tiera1_YYYYMMDD_HHMMSS/` (not intended for git; publish as a Release asset)
-- optional bundle zip in the workdir (publish as a Release asset)
+- CLASS/EDCL smoke and preflight logs under the run workdir.
+- rendered YAMLs under `<workdir>/yamls/`.
+- MCMC chains under `<workdir>/chains/`.
+- validation summary: `<workdir>/results_summary.json`.
+- validation report: `<workdir>/results_report.md`.
+- run manifest: `<workdir>/manifest.json`.
+- optional bundle zip: `<workdir>/bundle_edcl_tiera1.zip`.
+
+Generated Tier-A1 outputs are not intended for normal git history. Heavy run artifacts should be published as GitHub Release assets if needed for external reproducibility.
 
 Next artifact needed:
 
-- timestamped Tier-A workdir artifacts for YAML/config/log/environment provenance, especially `edcl_tiera1_20251221_212236/` and `edcl_tiera1_20251221_212444/`, or regenerated equivalent workdirs.
+- timestamped Tier-A workdir artifacts for YAML/config/log/environment provenance, especially `edcl_tiera1_20251221_212236/` and `edcl_tiera1_20251221_212444/`, or regenerated equivalent workdirs produced by the corrected runner.
