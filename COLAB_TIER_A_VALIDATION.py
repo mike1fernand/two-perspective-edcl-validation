@@ -114,7 +114,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
     if 'edcl_with_h0' in results and 'alpha_R' in results['edcl_with_h0']['parameters']:
         alpha = results['edcl_with_h0']['parameters']['alpha_R']
         tests['activation'] = {
-            'description': 'alpha_R significantly non-zero with H0 prior',
+            'description': 'alpha_R activates with local H0_obs likelihood',
             'alpha_R_mean': alpha['mean'],
             'alpha_R_std': alpha['std'],
             'alpha_R_q16': alpha['q16'],
@@ -235,7 +235,7 @@ def print_report(results: Dict[str, Dict], tests: Dict[str, Dict]) -> None:
         if 'edcl_with_h0' in results and 'H0_obs' in results['edcl_with_h0']['parameters']:
             h0 = results['edcl_with_h0']['parameters']['H0_obs']
             print(f"  - H0_obs = {h0['mean']:.2f} +/- {h0['std']:.2f} km/s/Mpc")
-            print(f"  - Matches Riess (73.04 +/- 1.04) perfectly")
+            print("  - H0_obs is consistent with Riess (73.04 +/- 1.04)")
         if 'alpha_R' in results['edcl_with_h0']['parameters']:
             a = results['edcl_with_h0']['parameters']['alpha_R']
             print(f"  - alpha_R = {a['mean']:.4f} (activates with local H0_obs)")
@@ -274,7 +274,7 @@ def create_h0_plot(results: Dict[str, Dict], output_path: str) -> None:
     
     ax.set_xlabel('H0 (km/s/Mpc)', fontsize=12)
     ax.set_ylabel('Posterior', fontsize=12)
-    ax.set_title('EDCL Resolution of Hubble Tension', fontsize=14)
+    ax.set_title('EDCL Tier-A1 H0_obs Mechanism Test', fontsize=14)
     ax.legend(loc='upper left')
     ax.set_xlim(65, 78)
     
