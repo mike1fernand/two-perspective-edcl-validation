@@ -25,6 +25,7 @@ Each run directory should include:
 - best-fit or minimum-chi2 sample record;
 - Cobaya logs;
 - likelihood/component chi2 outputs, if available;
+- `cosmology/results/tierA1_chain_component_audit.json`, when available, for chain-verified posterior values, formula checks, and best-fit component accounting;
 - convergence diagnostics;
 - environment manifest;
 - code commit SHA;
@@ -32,14 +33,20 @@ Each run directory should include:
 
 ## Current status
 
-At the time this document was added, the public GitHub releases page did not contain the large Tier-A chain/workdir assets. Exact per-likelihood chi2 decomposition should therefore be treated as blocked unless those artifacts are located locally, regenerated, or published.
+The public GitHub releases page still needs the large Tier-A chain/workdir assets for full referee-grade provenance. However, the available manifest-matching chain files have been used to produce `cosmology/results/tierA1_chain_component_audit.json`.
+
+That audit file verifies the Tier-A1 headline posterior values, the EDCL formula relations, and best-fit component accounting from the chain columns. Full YAML/config/log/environment provenance remains blocked until the timestamped workdir artifacts are located locally, regenerated, or published as Release assets.
 
 ## Why this matters
 
-The cleaned manuscript treats the Tier-A1 result as a mechanism-activation/collapse test. To move toward stronger Hubble-resolution language, the next required validation layer is exact likelihood-component accounting:
+The cleaned manuscript treats the Tier-A1 result as a mechanism-activation/collapse test. The current chain audit supplies best-fit likelihood-component accounting for the available Tier-A1 chains:
 
 ```text
-chi2_total = chi2_BAO + chi2_SN + chi2_H0obs
+EDCL+H0_obs vs LCDM:
+Delta chi2_total = -1.0627
+Delta chi2_H0/H0_obs = -1.0182
+Delta chi2_BAO = -0.3150
+Delta chi2_SN = +0.2705
 ```
 
-This must be extracted from production-chain likelihood components or clearly labeled as emulator-derived if reconstructed from public data.
+This accounting is chain-derived, not emulator-derived. Stronger Hubble-resolution language still requires ablations, robustness checks, fair baselines, Tier-A2/Planck validation, and workdir-backed provenance.
