@@ -231,14 +231,15 @@ def print_report(results: Dict[str, Dict], tests: Dict[str, Dict]) -> None:
     
     if n_pass == n_total:
         print("\n*** ALL VALIDATION TESTS PASS ***")
-        print("\nThe EDCL framework successfully resolves the Hubble tension:")
+        print("\nTier-A1 mechanism-activation checks pass:")
         if 'edcl_with_h0' in results and 'H0_obs' in results['edcl_with_h0']['parameters']:
             h0 = results['edcl_with_h0']['parameters']['H0_obs']
             print(f"  - H0_obs = {h0['mean']:.2f} +/- {h0['std']:.2f} km/s/Mpc")
             print(f"  - Matches Riess (73.04 +/- 1.04) perfectly")
         if 'alpha_R' in results['edcl_with_h0']['parameters']:
             a = results['edcl_with_h0']['parameters']['alpha_R']
-            print(f"  - alpha_R = {a['mean']:.4f} (activates when needed)")
+            print(f"  - alpha_R = {a['mean']:.4f} (activates with local H0_obs)")
+        print("  - Status: mechanism activation/collapse test, not decisive full Hubble-tension resolution")
     else:
         print(f"\n*** {n_total - n_pass} TEST(S) FAILED ***")
 
