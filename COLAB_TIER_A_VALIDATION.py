@@ -143,7 +143,7 @@ def run_validation_tests(results: Dict[str, Dict]) -> Dict[str, Dict]:
         sigma_combined = np.sqrt(h0_obs['std']**2 + 1.04**2)
         tension = abs(h0_obs['mean'] - 73.04) / sigma_combined
         tests['h0_match'] = {
-            'description': 'H0_obs matches Riess measurement',
+            'description': 'H0_obs is consistent with the Riess measurement',
             'H0_obs_mean': h0_obs['mean'],
             'H0_obs_std': h0_obs['std'],
             'tension_sigma': tension,
