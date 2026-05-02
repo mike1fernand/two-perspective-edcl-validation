@@ -163,6 +163,23 @@ CLASS with the EDCL patch compiled
 Cobaya data packages for DESI DR2 BAO and PantheonPlus
 ```
 
+### EDCL-patched CLASS runtime requirement
+
+A fresh clone of this repository is not, by itself, enough to regenerate the Tier-A MCMC chains from scratch. Tier-A requires an EDCL-enabled CLASS/classy runtime.
+
+Plain upstream CLASS is not sufficient unless the EDCL patch has been applied, because the Tier-A EDCL YAMLs pass EDCL-specific parameters such as:
+
+```text
+edcl_on
+kappa_tick
+c4
+log10_l0
+edcl_kernel
+edcl_zeta
+edcl_ai
+alpha_R
+```
+
 The runner generates or renders YAML configurations, runs three MCMC chains, and then calls:
 
 ```bash
