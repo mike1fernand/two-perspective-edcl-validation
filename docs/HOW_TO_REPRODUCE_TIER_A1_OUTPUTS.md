@@ -180,6 +180,43 @@ edcl_ai
 alpha_R
 ```
 
+A reproducible Tier-A setup therefore requires one of the following:
+
+```text
+1. the original EDCL-patched CLASS source tree;
+2. a documented EDCL patch applied to a specified upstream CLASS tag/commit;
+3. a documented EDCL CLASS fork/branch/tag.
+```
+
+Do not commit a full copied `class_public/` tree into this repository. Keep CLASS, Cobaya packages, chains, and timestamped workdirs outside normal git history. If needed, publish heavy runtime artifacts as GitHub Release assets.
+
+Before running expensive MCMC chains, verify the runtime with:
+
+```bash
+python cosmology/scripts/smoke_test_classy_edcl.py \
+  --class-path /path/to/edcl_class_public
+```
+
+Required result:
+
+```text
+Baseline compute OK.
+EDCL compute OK.
+```
+
+If the smoke test fails with unknown EDCL parameters, the CLASS source is not the correct EDCL-patched runtime or the parameter names have drifted.
+
+The remaining from-scratch reproducibility gap is to supply the exact EDCL CLASS patch/fork/source used for the current Tier-A1 chains, including:
+
+```text
+upstream CLASS tag/commit
+EDCL patch/fork/source location
+patch or source hash
+build command
+Python/Cobaya versions
+successful smoke-test result
+```
+
 The runner generates or renders YAML configurations, runs three MCMC chains, and then calls:
 
 ```bash
