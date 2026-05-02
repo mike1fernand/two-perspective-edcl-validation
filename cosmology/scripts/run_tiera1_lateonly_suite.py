@@ -502,15 +502,31 @@ def main() -> int:
 
     def render_yamls():
         render = os.path.join(repo_root, "cosmology", "scripts", "render_yamls.py")
-        run_cmd([sys.executable, render, "--class-path", class_dir, "--out-root", chains_dir],
-                cwd=repo_root, log_path=os.path.join(logs, "40_render_yamls.log"))
+        run_cmd(
+            [
+                sys.executable,
+                render,
+                "--class-path",
+                class_dir,
+                "--out-root",
+                chains_dir,
+                "--yaml-dir",
+                yamls_dir,
+                "--template",
+                "lcdm_lateonly.yaml.in",
+                "--template",
+                "edcl_cosmo_lateonly.yaml.in",
+                "--template",
+                "edcl_cosmo_lateonly_no_sh0es.yaml.in",
+            ],
+            cwd=repo_root,
+            log_path=os.path.join(logs, "40_render_yamls.log"),
+        )
 
-        cob = os.path.join(repo_root, "cosmology", "cobaya")
         for name in ["lcdm_lateonly.yaml", "edcl_cosmo_lateonly.yaml", "edcl_cosmo_lateonly_no_sh0es.yaml"]:
-            src = os.path.join(cob, name)
-            if not os.path.exists(src):
-                raise RuntimeError(f"Expected rendered YAML not found: {src}")
-            shutil.copy2(src, os.path.join(yamls_dir, name))
+            rendered = os.path.join(yamls_dir, name)
+            if not os.path.exists(rendered):
+                raise RuntimeError(f"Expected rendered YAML not found: {rendered}")
 
         # Default run length by profile if not overridden.
         max_samples = int(args.mcmc_max_samples or default_max_samples)
