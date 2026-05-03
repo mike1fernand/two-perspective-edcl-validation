@@ -12,11 +12,14 @@ This module implements a normalization rule that *exactly reproduces the paper's
 f_norm=0.7542 for ζ=0.5 and a_i=1e-4 in the high-z limit described in Sec. meanfield-cosmo.
 
 We implement two kernel shapes:
-- 'paper_claim_exp':       (a'/a)^2 * exp(-z(a')/ζ)         [as written in Eq. (kernel-shape)]
-- 'paper_equation_1mexp':  (a'/a)^2 * (1 - exp(-z(a')/ζ))   [alternate saturating form; NOT used in paper]
+- 'paper_claim_exp':       (a'/a)^2 * exp(-z(a')/ζ)         [canonical Phase-1 EDCL kernel]
+- 'paper_equation_1mexp':  (a'/a)^2 * (1 - exp(-z(a')/ζ))   [diagnostic/regression variant; NOT used for current paper-chain results]
 
-A referee will expect you to resolve this ambiguity in the manuscript. This code is designed to make that
-inconsistency explicit and testable.
+The manuscript uses the high-z-suppressed exponential kernel variant,
+'paper_claim_exp', as the canonical Phase-1 EDCL kernel. The
+'paper_equation_1mexp' variant is retained only as a diagnostic/regression check
+for an earlier draft ambiguity and must not be used for current paper-chain results
+unless explicitly stated as an ablation.
 
 Performance note:
 The Tier-0 and unit-test suites evaluate δ(a) at many a values. A naive implementation that re-integrates
@@ -119,7 +122,7 @@ def integrate_kernel_over_log_a(
     else:
         raise ValueError(f"Unknown kernel variant: {variant}")
 
-    return float(np.trapz(vals, xs))
+    return float(_TRAPZ(vals, xs))
 
 
 @dataclass(frozen=True)
