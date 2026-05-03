@@ -4,9 +4,12 @@ Render Cobaya YAML templates by substituting __CLASS_PATH__ and __OUTPUT_DIR__.
 
 This avoids assumptions about where CLASS is installed and where chains should go.
 
-Default behavior is backward-compatible: rendered YAMLs are written next to the
-*.yaml.in templates. To avoid dirtying the source tree, pass --yaml-dir and the
-rendered YAMLs will be written there instead.
+Safe default:
+  Rendered YAMLs must be written to an explicit --yaml-dir, typically
+  <workdir>/yamls/.
+
+Legacy/source-tree rendering is still available only when --in-place is supplied
+explicitly. This prevents accidental writes beside the source *.yaml.in templates.
 """
 from __future__ import annotations
 
@@ -54,6 +57,27 @@ def _discover_templates(templates_dir: pathlib.Path, names: Iterable[str] | None
     return sorted(templates_dir.glob("*.yaml.in"))
 
 
+def _resolve_yaml_dir(templates_dir: pathlib.Path, yaml_dir_arg: str, in_place: bool) -> pathlib.Path:
+    """Resolve the rendered-YAML output directory using safe defaults."""
+    if yaml_dir_arg and in_place:
+        raise SystemExit("ERROR: use either --yaml-dir or --in-place, not both.")
+
+    if not yaml_dir_arg and not in_place:
+        raise SystemExit(
+            "ERROR: --yaml-dir is required unless --in-place is explicitly supplied. "
+            "Use --yaml-dir <workdir>/yamls for normal Tier-A1 runs."
+        )
+
+    if in_place:
+        print(
+            "WARNING: --in-place writes rendered YAML files beside source templates. "
+            "Use only for legacy/debug workflows."
+        )
+        return templates_dir
+
+    return pathlib.Path(yaml_dir_arg)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -76,7 +100,15 @@ def main() -> None:
         default="",
         help=(
             "Directory where rendered YAML files should be written. "
-            "Default: write next to the templates for backward compatibility."
+            "Required unless --in-place is explicitly supplied. Recommended: <workdir>/yamls."
+        ),
+    )
+    ap.add_argument(
+        "--in-place",
+        action="store_true",
+        help=(
+            "Write rendered YAMLs beside source templates. Not recommended for paper/reviewer runs; "
+            "provided only for explicit legacy/debug use."
         ),
     )
     ap.add_argument(
@@ -94,7 +126,7 @@ def main() -> None:
     if not templates_dir.is_dir():
         raise FileNotFoundError(f"Templates directory not found: {templates_dir}")
 
-    yaml_dir = pathlib.Path(args.yaml_dir) if args.yaml_dir else templates_dir
+    yaml_dir = _resolve_yaml_dir(templates_dir, args.yaml_dir, args.in_place)
 
     out_root = pathlib.Path(args.out_root)
     out_root.mkdir(parents=True, exist_ok=True)
