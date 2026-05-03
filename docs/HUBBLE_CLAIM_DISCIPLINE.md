@@ -17,10 +17,18 @@ The current public Tier-A1 validation supports:
 ```text
 a custom observed-frame local-Hubble likelihood
 activation of alpha_R with the local H0_obs driver
-collapse of alpha_R when the local driver is removed
+a no-H0 control in which alpha_R shifts toward zero, but does not pass the configured q95 collapse threshold in the current compact summary
 a matched observed-frame value H0_obs = 73.04 ± 0.95 km/s/Mpc
 a modest late-only best-fit improvement, Delta chi2 = -1.0627
 chain-verified best-fit component accounting in cosmology/results/tierA1_chain_component_audit.json
+```
+
+Current no-H0 threshold status:
+
+```text
+q95(alpha_R) in the no-H0 control = 0.0497
+configured collapse pass threshold = q95(alpha_R) <= 0.03
+status = collapse tendency, not configured-threshold collapse pass
 ```
 
 Current chain-verified component accounting for EDCL+H0_obs vs LCDM:
@@ -67,19 +75,19 @@ cosmology/scripts/run_tiera1_lateonly_suite.py
 Use:
 
 ```text
-Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.
+Tier-A1 supports a working H0_obs calibration-drift mechanism in late-only data: alpha_R activates when the local observed-frame H0_obs likelihood is included, and the no-H0 control shifts alpha_R toward zero. The current compact no-H0 summary has q95(alpha_R)=0.0497, which exceeds the configured q95<=0.03 collapse pass threshold, so the no-H0 result supports a collapse tendency rather than a configured-threshold collapse pass.
 ```
 
 or:
 
 ```text
-The current Tier-A1 result is a mechanism-activation test, not yet a decisive model-comparison resolution.
+The current Tier-A1 result is a mechanism-activation test with a no-H0 collapse-tendency control, not yet a decisive model-comparison resolution.
 ```
 
 or:
 
 ```text
-Tier-A1 verifies an observed-frame H0_obs calibration channel: alpha_R activates under the local H0_obs likelihood and collapses without it. In this chain set, the total best-fit improvement over LCDM is modest and comes primarily from the H0/H0_obs term, with small BAO/SN reallocations.
+Tier-A1 verifies an observed-frame H0_obs calibration channel: alpha_R activates under the local H0_obs likelihood, while the no-H0 control shifts alpha_R toward zero but does not satisfy the configured q95 collapse pass threshold in the current compact summary. In this chain set, the total best-fit improvement over LCDM is modest and comes primarily from the H0/H0_obs term, with small BAO/SN reallocations.
 ```
 
 ## Avoid for current Tier-A1
@@ -95,6 +103,8 @@ The full Planck/CMB validation is complete.
 The Tier-A1 result proves Planck compatibility.
 The exp kernel is uniquely viable.
 ```
+
+Also avoid saying that `alpha_R` simply "collapses without" the local driver unless the configured no-H0 q95 threshold is actually satisfied.
 
 The final statement about the exp kernel requires a documented scan before it can be used.
 
