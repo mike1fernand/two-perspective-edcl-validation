@@ -85,7 +85,7 @@ Canonical current Tier-A1 result card:
 
 Current Tier-A1 status:
 
-- The current result validates a working `H0_obs` calibration-drift mechanism and activation/collapse behavior in late-only data.
+- Tier-A1 supports a working `H0_obs` calibration-drift mechanism in late-only data: `alpha_R` activates when the local observed-frame `H0_obs` likelihood is included, and the no-H0 control shifts `alpha_R` toward zero. The current compact no-H0 summary has `q95(alpha_R)=0.0497`, which exceeds the configured `q95<=0.03` collapse pass threshold, so the no-H0 result supports a collapse tendency rather than a configured-threshold collapse pass.
 - Best-fit component accounting is chain-verified in `cosmology/results/tierA1_chain_component_audit.json`: EDCL+H0_obs vs LCDM gives `Delta chi2 = -1.0627`, with H0/H0_obs = `-1.0182`, BAO = `-0.3150`, and SN = `+0.2705`.
 - Stronger claims still require workdir-backed provenance, likelihood ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
 
