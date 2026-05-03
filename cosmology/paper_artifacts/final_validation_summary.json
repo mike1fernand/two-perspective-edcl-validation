@@ -55,6 +55,7 @@
     "alpha_R_95upper": 0.049694743549999996,
     "chi2_best": 1416.2775
   },
+  "collapse_threshold_note": "The no-H0 posterior mean shifts toward zero, but q95(alpha_R)=0.0497 exceeds the pre-registered pass threshold q95<=0.03 in cosmology/config/validation_config.yaml. This supports a collapse tendency, not a threshold pass under the current validation configuration.",
   "best_fit_accounting": {
     "delta_chi2_edcl_h0obs_vs_lcdm": -1.0627,
     "component_deltas": {
@@ -68,7 +69,7 @@
   "collapse_ratio": 0.17757155036012742,
   "validation_status": {
     "activation": "PASS_mechanism_check",
-    "collapse": "PASS_mechanism_check",
+    "collapse": "WARN_threshold_not_met",
     "h0_obs_match": "PASS_mechanism_check",
     "chi2_improvement": "PASS_diagnostic_only"
   },
