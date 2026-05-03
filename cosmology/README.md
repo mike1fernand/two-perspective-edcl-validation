@@ -13,7 +13,7 @@ external likelihood datasets
 The current Tier-A1 claim boundary is:
 
 ```text
-Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.
+Tier-A1 supports a working H0_obs calibration-drift mechanism in late-only data: alpha_R activates when the local observed-frame H0_obs likelihood is included, and the no-H0 control shifts alpha_R toward zero. The current compact no-H0 summary has q95(alpha_R)=0.0497, which exceeds the configured q95<=0.03 collapse pass threshold, so the no-H0 result supports a collapse tendency rather than a configured-threshold collapse pass.
 ```
 
 Do not present Tier-A1 alone as a decisive full Hubble-tension resolution.
@@ -191,17 +191,18 @@ edcl_cosmo_no_sh0es.yaml.in
 
 ## Rendering YAMLs
 
-Render templates by substituting the CLASS path and per-run output directory.
+Render templates by substituting the CLASS path and per-run output directory. The renderer requires either `--yaml-dir` for workdir-safe output or `--in-place` for explicit source-tree rendering.
 
-Legacy source-tree rendering:
+Explicit legacy source-tree rendering:
 
 ```bash
 python cosmology/scripts/render_yamls.py \
   --class-path /path/to/class_public \
-  --out-root chains
+  --out-root chains \
+  --in-place
 ```
 
-No-clutter workdir rendering:
+Preferred no-clutter workdir rendering:
 
 ```bash
 python cosmology/scripts/render_yamls.py \
@@ -320,7 +321,7 @@ python3 cosmology/scripts/analyze_chains.py \
   --plot
 ```
 
-This is separate from the workdir-level validator.
+This is separate from the workdir-level validator. The standalone analyzer uses the configured no-H0 collapse threshold `q95(alpha_R) <= 0.03`; if the no-H0 q95 exceeds that value, report the result as a collapse tendency rather than a configured-threshold collapse pass.
 
 ## Heavy outputs
 
