@@ -1,15 +1,32 @@
 {
   "validation_date": "2025-12-21",
-  "status": "historical_likelihood_fix_summary_superseded_by_final_validation_summary",
-  "canonical_current_result_card": "cosmology/results/tierA1_hubble_result_card.json",
-  "current_summary": "This file records the historical H0_obs likelihood-fix validation stage. The canonical current Tier-A1 values are in cosmology/paper_artifacts/final_validation_summary.json and cosmology/results/tierA1_hubble_result_card.json.",
-  "bug_description": {
-    "issue": "The original H0.riess2020 likelihood compared the sampled theory-frame H0 parameter instead of the EDCL observed-frame H0_obs quantity.",
-    "consequence": "The EDCL calibration-drift channel was not tested by that likelihood setup.",
-    "fix": "Use a custom likelihood that compares H0_obs = H0_theory * (1 + delta0) to the local H0 measurement."
+  "artifact_status": "historical_superseded_do_not_quote_as_current",
+  "artifact_role": "Historical record of an earlier H0_obs likelihood-fix validation stage.",
+  "current_canonical_artifacts": {
+    "final_validation_summary": "cosmology/paper_artifacts/final_validation_summary.json",
+    "result_card": "cosmology/results/tierA1_hubble_result_card.json",
+    "chain_component_audit": "cosmology/results/tierA1_chain_component_audit.json",
+    "reproduction_doc": "docs/HOW_TO_REPRODUCE_TIER_A1_OUTPUTS.md",
+    "claim_ladder": "docs/HUBBLE_RESOLUTION_CLAIM_LADDER.md",
+    "h0_likelihood_fix_doc": "cosmology/docs/H0_LIKELIHOOD_FIX.md"
+  },
+  "current_summary": "This file records a historical H0_obs likelihood-fix validation stage. Do not quote its historical numerical values as the current manuscript result. Use cosmology/paper_artifacts/final_validation_summary.json, cosmology/results/tierA1_hubble_result_card.json, and cosmology/results/tierA1_chain_component_audit.json for current Tier-A1 values.",
+  "corrected_mechanism_definition": {
+    "issue_fixed": "The stale direct local-H0 setup compared the sampled theory-frame H0 parameter instead of the EDCL observed-frame H0_obs quantity.",
+    "correct_observable": "H0_obs = H0_theory * (1 + delta0)",
+    "delta0": "alpha_R * 0.7542",
+    "canonical_helper": "cosmology/likelihoods/H0_edcl_func.py",
+    "edcl_local_h0_key": "H0_edcl"
+  },
+  "h0_likelihood_convention": {
+    "lcdm_local_h0": "direct H0.riess2020 is allowed for LCDM",
+    "edcl_with_local_h0": "H0_edcl is required; direct H0.riess2020 is forbidden; derived H0_obs and delta0 are required",
+    "edcl_no_h0": "H0_edcl and direct H0.riess2020 are forbidden",
+    "stale_edcl_direct_h0_interpretation": "configuration failure, not a physics test of the observed-frame mechanism"
   },
   "historical_results_with_fix": {
-    "note": "These values came from an earlier fixed-likelihood validation stage and should not be quoted as the current manuscript result unless reproduced in the current Tier-A1 result card.",
+    "do_not_quote_as_current": true,
+    "note": "These values came from an earlier fixed-likelihood validation stage. They are retained only to document the development history and should not be used as the current paper result unless independently reproduced by the current Tier-A1 result card and chain/workdir artifacts.",
     "LCDM": {
       "H0": "69.11 +/- 0.30",
       "chi2_best": 1427.1
@@ -30,12 +47,14 @@
   "current_claim_discipline": {
     "allowed_current_wording": "Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.",
     "not_allowed_as_current_Tier_A1_claim": "EDCL decisively resolves the Hubble tension.",
+    "current_result_status": "mechanism_activation_not_decisive_resolution",
     "next_required_validations": [
-      "exact per-likelihood chi2 decomposition",
+      "workdir-backed provenance for YAML/config/log/environment state",
       "likelihood ablations",
       "kernel/prior/local-anchor robustness scans",
       "fair baselines",
-      "Tier-A2 Planck validation"
+      "Tier-A2 Planck validation",
+      "documented Bayesian-evidence provenance if evidence claims are made"
     ]
   }
 }
