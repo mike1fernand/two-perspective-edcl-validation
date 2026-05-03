@@ -212,7 +212,7 @@ traceability.md
 
 ## Claim boundary
 
-Tier-A1 is a mechanism-validation layer. It can test whether the observed-frame `H0_obs` channel activates under the local H0 likelihood and collapses without it.
+Tier-A1 supports a working `H0_obs` calibration-drift mechanism in late-only data: `alpha_R` activates when the local observed-frame `H0_obs` likelihood is included, and the no-H0 control shifts `alpha_R` toward zero. The current compact no-H0 summary has `q95(alpha_R)=0.0497`, which exceeds the configured `q95<=0.03` collapse pass threshold, so the no-H0 result supports a collapse tendency rather than a configured-threshold collapse pass.
 
 Tier-A1 alone should not be described as a decisive full Hubble-tension resolution. Stronger claims require additional provenance, likelihood ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
 
