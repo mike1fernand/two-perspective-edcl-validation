@@ -103,7 +103,7 @@ python3 cosmology/scripts/analyze_chains.py \
   --plot
 ```
 
-This analyzes chain files only. It does not validate rendered YAMLs, logs, workdir structure, or H0-likelihood invariants.
+This analyzes chain files only. It does not validate rendered YAMLs, logs, workdir structure, or H0-likelihood invariants. The standalone analyzer uses the configured no-H0 collapse threshold `q95(alpha_R) <= 0.03`; if the no-H0 q95 exceeds that value, report the result as a collapse tendency rather than a configured-threshold collapse pass.
 
 For full workdir validation, use:
 
@@ -191,14 +191,14 @@ The workdir validator and chain analyzer cover:
 | Test | Purpose |
 |---|---|
 | Activation | `alpha_R` activates under the local `H0_obs` likelihood |
-| Collapse | `alpha_R` collapses in the no-local-H0 control |
+| Collapse tendency | The no-local-H0 control shifts `alpha_R` toward zero; configured collapse pass requires `q95(alpha_R) <= 0.03` |
 | H0_obs match | observed-frame `H0_obs` is consistent with the local anchor |
 | Chi-square accounting | best-fit chi-square and component diagnostics are reported |
 
 Current claim boundary:
 
 ```text
-Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.
+Tier-A1 supports a working H0_obs calibration-drift mechanism in late-only data: alpha_R activates when the local observed-frame H0_obs likelihood is included, and the no-H0 control shifts alpha_R toward zero. The current compact no-H0 summary has q95(alpha_R)=0.0497, which exceeds the configured q95<=0.03 collapse pass threshold, so the no-H0 result supports a collapse tendency rather than a configured-threshold collapse pass.
 ```
 
 Do not use Tier-A1 alone as a decisive full Hubble-tension resolution claim.
