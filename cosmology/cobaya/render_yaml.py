@@ -17,6 +17,10 @@ This wrapper exists only to keep older commands from failing. It translates the
 legacy --output-dir argument into the canonical --out-root argument and delegates
 to cosmology/scripts/render_yamls.py.
 
+If --yaml-dir is not supplied, the wrapper adds --in-place explicitly and prints
+a warning. This preserves legacy source-tree rendering while keeping normal
+reviewer/paper runs on the safer --yaml-dir path.
+
 It does not print direct MCMC-run instructions and does not require
 COBAYA_PACKAGES_PATH. The corrected Tier-A1 suite runner manages Cobaya package
 installation/test steps in a workdir-local environment.
@@ -58,6 +62,13 @@ Legacy-compatible command:
     --class-path /path/to/class_public \\
     --output-dir <workdir>/chains \\
     --yaml-dir <workdir>/yamls
+
+Legacy source-tree fallback:
+  python3 cosmology/cobaya/render_yaml.py \\
+    --class-path /path/to/class_public
+
+When --yaml-dir is omitted, this wrapper delegates with --in-place and prints a
+warning. Use the --yaml-dir form for reviewer/paper runs.
 """,
     )
     parser.add_argument(
@@ -126,6 +137,14 @@ Legacy-compatible command:
 
     if args.yaml_dir:
         cmd.extend(["--yaml-dir", args.yaml_dir])
+    else:
+        print(
+            "WARNING: --yaml-dir was not supplied; using --in-place for legacy "
+            "source-tree rendering. For reviewer/paper runs, use "
+            "--yaml-dir <workdir>/yamls.",
+            file=sys.stderr,
+        )
+        cmd.append("--in-place")
 
     if args.template:
         for template in args.template:
