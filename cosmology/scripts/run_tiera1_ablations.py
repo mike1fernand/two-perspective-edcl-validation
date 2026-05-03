@@ -10,9 +10,14 @@ Tier-A1 chain-component audit. It tests whether the EDCL calibration parameter
 alpha_R activates specifically when the local observed-frame H0_obs likelihood
 is present, and whether BAO/SN alone spuriously prefer alpha_R.
 
+This is an ablation helper, not the canonical Tier-A1 production runner.
+The canonical Tier-A1 production runner is:
+
+  cosmology/scripts/run_tiera1_lateonly_suite.py
+
 Default behavior is no-clutter and safe:
-  * generated YAML files are written under an output directory, not into the
-    repo source tree;
+  * generated YAML files are written under an output/work directory;
+  * generated YAMLs go under <output-dir>/yamls/;
   * Cobaya is NOT launched unless --run is explicitly provided;
   * generated chains and run directories should not be committed to git.
 
@@ -31,15 +36,17 @@ Generate YAMLs only:
     python cosmology/scripts/run_tiera1_ablations.py \
       --class-path /path/to/class_public \
       --output-dir ./chains/tierA1_ablations \
-      --dry-run
+      --dry-run \
+      --overwrite
 
-Run all generated ablations:
+Run all generated ablations after inspecting YAMLs:
 
-    export COBAYA_PACKAGES_PATH=/path/to/cobaya_packages
     python cosmology/scripts/run_tiera1_ablations.py \
       --class-path /path/to/class_public \
       --output-dir ./chains/tierA1_ablations \
-      --run
+      --run \
+      --packages-path ./chains/tierA1_ablations/cobaya_packages \
+      --overwrite
 
 Analyze already-run ablation chains:
 
@@ -50,15 +57,18 @@ Analyze already-run ablation chains:
 
 Notes
 -----
-The generated EDCL configs intentionally mirror the production EDCL template:
+The generated EDCL configs intentionally mirror the production EDCL convention:
   * edcl_on: 'yes'
   * edcl_kernel: exp
   * edcl_zeta: 0.5
   * edcl_ai: 0.0001
   * H0_obs = H0 * (1 + alpha_R * 0.7542)
+  * local H0 uses H0_edcl, not direct H0.riess2020
 
-Stronger Hubble-resolution wording still requires full ablation results,
-robustness scans, fair baselines, and Tier-A2/Planck validation.
+Ablations test the H0_obs mechanism driver. They do not by themselves establish
+decisive full Hubble-tension resolution. Stronger wording still requires
+robustness scans, fair baselines, workdir-backed provenance, and Tier-A2/Planck
+validation.
 """
 
 from __future__ import annotations
@@ -70,7 +80,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -148,24 +158,9 @@ ABLATIONS: Tuple[Ablation, ...] = (
 
 
 PROFILE_SETTINGS = {
-    "production": {
-        "max_samples": 50000,
-        "Rminus1_stop": 0.01,
-        "Rminus1_cl_stop": 0.15,
-        "learn_proposal_Rminus1_max": 30,
-    },
-    "medium": {
-        "max_samples": 30000,
-        "Rminus1_stop": 0.02,
-        "Rminus1_cl_stop": 0.20,
-        "learn_proposal_Rminus1_max": 30,
-    },
-    "quick": {
-        "max_samples": 10000,
-        "Rminus1_stop": 0.05,
-        "Rminus1_cl_stop": 0.30,
-        "learn_proposal_Rminus1_max": 20,
-    },
+    "production": {"max_samples": 50000, "Rminus1_stop": 0.01, "Rminus1_cl_stop": 0.15, "learn_proposal_Rminus1_max": 30},
+    "medium": {"max_samples": 30000, "Rminus1_stop": 0.02, "Rminus1_cl_stop": 0.20, "learn_proposal_Rminus1_max": 30},
+    "quick": {"max_samples": 10000, "Rminus1_stop": 0.05, "Rminus1_cl_stop": 0.30, "learn_proposal_Rminus1_max": 20},
 }
 
 
@@ -176,15 +171,11 @@ def render_likelihood_block(ablation: Ablation) -> str:
     if ablation.use_sn:
         lines.append(f"  {SN_KEY}: null")
     if ablation.use_h0obs:
-        lines.extend(
-            [
-                "  H0_edcl:",
-                (
-                    "    external: \"lambda H0, alpha_R: -0.5 * "
-                    f"((H0 * (1.0 + alpha_R * {F_NORM}) - {H0_LOCAL}) / {SIGMA_H0_LOCAL}) ** 2\""
-                ),
-            ]
-        )
+        lines.extend([
+            "  H0_edcl:",
+            "    external: \"lambda H0, alpha_R: -0.5 * "
+            f"((H0 * (1.0 + alpha_R * {F_NORM}) - {H0_LOCAL}) / {SIGMA_H0_LOCAL}) ** 2\"",
+        ])
     if len(lines) == 1:
         raise ValueError(f"Ablation {ablation.key} has no likelihoods enabled.")
     return "\n".join(lines)
@@ -192,127 +183,108 @@ def render_likelihood_block(ablation: Ablation) -> str:
 
 def render_theory_block(class_path: str) -> str:
     extra = [f"      {key}: {value}" for key, value in EDCL_EXTRA_ARGS.items()]
-    return "\n".join(
-        [
-            "theory:",
-            "  classy:",
-            f"    path: {class_path}",
-            "    extra_args:",
-            *extra,
-        ]
-    )
+    return "\n".join(["theory:", "  classy:", f"    path: {class_path}", "    extra_args:", *extra])
 
 
 def render_params_block(ablation: Ablation) -> str:
-    sampled_alpha = ablation.alpha_r_fixed is None
-    alpha_block = (
-        "\n".join(
-            [
-                "  alpha_R:",
-                "    prior:",
-                "      min: 0.0",
-                "      max: 0.25",
-                "    ref: 0.08",
-                "    proposal: 0.015",
-                "    latex: \\alpha_R",
-            ]
-        )
-        if sampled_alpha
-        else "\n".join(
-            [
-                "  alpha_R:",
-                f"    value: {ablation.alpha_r_fixed}",
-                "    latex: \\alpha_R",
-            ]
-        )
-    )
+    if ablation.alpha_r_fixed is None:
+        alpha_block = "\n".join([
+            "  alpha_R:",
+            "    prior:",
+            "      min: 0.0",
+            "      max: 0.25",
+            "    ref: 0.08",
+            "    proposal: 0.015",
+            "    latex: \\alpha_R",
+        ])
+    else:
+        alpha_block = "\n".join([
+            "  alpha_R:",
+            f"    value: {ablation.alpha_r_fixed}",
+            "    latex: \\alpha_R",
+        ])
 
-    return "\n".join(
-        [
-            "params:",
-            "  omega_b:",
-            "    prior:",
-            "      min: 0.018",
-            "      max: 0.026",
-            "    ref:",
-            "      dist: norm",
-            "      loc: 0.02237",
-            "      scale: 0.00015",
-            "    proposal: 0.0001",
-            "    latex: \\omega_b",
-            "",
-            "  omega_cdm:",
-            "    prior:",
-            "      min: 0.08",
-            "      max: 0.16",
-            "    ref:",
-            "      dist: norm",
-            "      loc: 0.1200",
-            "      scale: 0.0012",
-            "    proposal: 0.001",
-            "    latex: \\omega_{cdm}",
-            "",
-            "  H0:",
-            "    prior:",
-            "      min: 60.0",
-            "      max: 80.0",
-            "    ref: 67.5",
-            "    proposal: 0.5",
-            "    latex: H_0^{\\rm theory}",
-            "",
-            alpha_block,
-            "",
-            "  H0_obs:",
-            f"    derived: 'lambda H0, alpha_R: H0 * (1.0 + alpha_R * {F_NORM})'",
-            "    latex: H_0^{\\rm obs}",
-            "",
-            "  delta0:",
-            f"    derived: 'lambda alpha_R: alpha_R * {F_NORM}'",
-            "    latex: \\delta_0",
-        ]
-    )
+    return "\n".join([
+        "params:",
+        "  omega_b:",
+        "    prior:",
+        "      min: 0.018",
+        "      max: 0.026",
+        "    ref:",
+        "      dist: norm",
+        "      loc: 0.02237",
+        "      scale: 0.00015",
+        "    proposal: 0.0001",
+        "    latex: \\omega_b",
+        "",
+        "  omega_cdm:",
+        "    prior:",
+        "      min: 0.08",
+        "      max: 0.16",
+        "    ref:",
+        "      dist: norm",
+        "      loc: 0.1200",
+        "      scale: 0.0012",
+        "    proposal: 0.001",
+        "    latex: \\omega_{cdm}",
+        "",
+        "  H0:",
+        "    prior:",
+        "      min: 60.0",
+        "      max: 80.0",
+        "    ref: 67.5",
+        "    proposal: 0.5",
+        "    latex: H_0^{\\rm theory}",
+        "",
+        alpha_block,
+        "",
+        "  H0_obs:",
+        f"    derived: 'lambda H0, alpha_R: H0 * (1.0 + alpha_R * {F_NORM})'",
+        "    latex: H_0^{\\rm obs}",
+        "",
+        "  delta0:",
+        f"    derived: 'lambda alpha_R: alpha_R * {F_NORM}'",
+        "    latex: \\delta_0",
+    ])
 
 
 def render_sampler_block(profile: str, seed: int) -> str:
-    settings = PROFILE_SETTINGS[profile]
-    return "\n".join(
-        [
-            "sampler:",
-            "  mcmc:",
-            f"    max_samples: {settings['max_samples']}",
-            f"    Rminus1_stop: {settings['Rminus1_stop']}",
-            f"    Rminus1_cl_stop: {settings['Rminus1_cl_stop']}",
-            "    learn_proposal: true",
-            f"    learn_proposal_Rminus1_max: {settings['learn_proposal_Rminus1_max']}",
-            "    measure_speeds: true",
-            "    oversample_power: 0.4",
-            "    drag: true",
-            f"    seed: {seed}",
-        ]
-    )
+    s = PROFILE_SETTINGS[profile]
+    return "\n".join([
+        "sampler:",
+        "  mcmc:",
+        f"    max_samples: {s['max_samples']}",
+        f"    Rminus1_stop: {s['Rminus1_stop']}",
+        f"    Rminus1_cl_stop: {s['Rminus1_cl_stop']}",
+        "    learn_proposal: true",
+        f"    learn_proposal_Rminus1_max: {s['learn_proposal_Rminus1_max']}",
+        "    measure_speeds: true",
+        "    oversample_power: 0.4",
+        "    drag: true",
+        f"    seed: {seed}",
+    ])
 
 
 def render_yaml(ablation: Ablation, class_path: str, output_dir: Path, profile: str, seed: int) -> str:
-    return "\n\n".join(
-        [
-            f"# {ablation.output_prefix}.yaml",
-            f"# {ablation.description}",
-            "# Generated by cosmology/scripts/run_tiera1_ablations.py",
-            render_likelihood_block(ablation),
-            render_theory_block(class_path),
-            render_params_block(ablation),
-            f"output: {output_dir / ablation.output_prefix}",
-            render_sampler_block(profile, seed),
-            "",
-        ]
-    )
+    return "\n\n".join([
+        f"# {ablation.output_prefix}.yaml",
+        f"# {ablation.description}",
+        "# Generated by cosmology/scripts/run_tiera1_ablations.py",
+        "# H0 convention: EDCL local-H0 ablations use H0_edcl and H0_obs, not direct H0.riess2020.",
+        render_likelihood_block(ablation),
+        render_theory_block(class_path),
+        render_params_block(ablation),
+        f"output: {output_dir / 'chains' / ablation.output_prefix}",
+        render_sampler_block(profile, seed),
+        "",
+    ])
 
 
-def write_text(path: Path, content: str, overwrite: bool) -> None:
+def write_text(path: Path, text: str, overwrite: bool) -> None:
     if path.exists() and not overwrite:
         raise FileExistsError(f"Refusing to overwrite existing file without --overwrite: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    path.write_text(text, encoding="utf-8")
 
 
 def selected_ablations(selection: List[str]) -> List[Ablation]:
@@ -321,44 +293,28 @@ def selected_ablations(selection: List[str]) -> List[Ablation]:
         return list(ABLATIONS)
     missing = [key for key in selection if key not in available]
     if missing:
-        raise ValueError(
-            "Unknown ablation(s): "
-            + ", ".join(missing)
-            + ". Available: "
-            + ", ".join(sorted(available))
-        )
+        raise ValueError("Unknown ablation(s): " + ", ".join(missing) + ". Available: " + ", ".join(sorted(available)))
     return [available[key] for key in selection]
 
 
-def write_configs(
-    ablations: List[Ablation],
-    class_path: str,
-    output_dir: Path,
-    profile: str,
-    seed: int,
-    overwrite: bool,
-) -> Dict[str, object]:
-    yaml_dir = output_dir / "yaml"
+def write_configs(ablations: List[Ablation], class_path: str, output_dir: Path, profile: str, seed: int, overwrite: bool) -> Dict[str, object]:
+    yaml_dir = output_dir / "yamls"
+    chain_dir = output_dir / "chains"
     yaml_dir.mkdir(parents=True, exist_ok=True)
+    chain_dir.mkdir(parents=True, exist_ok=True)
+
     generated = []
     for ablation in ablations:
         yaml_path = yaml_dir / f"{ablation.output_prefix}.yaml"
-        yaml_text = render_yaml(ablation, class_path, output_dir, profile, seed)
-        write_text(yaml_path, yaml_text, overwrite=overwrite)
-        generated.append(
-            {
-                "key": ablation.key,
-                "description": ablation.description,
-                "yaml": str(yaml_path),
-                "output_prefix": str(output_dir / ablation.output_prefix),
-                "likelihoods": {
-                    "bao": ablation.use_bao,
-                    "pantheonplus": ablation.use_sn,
-                    "h0obs": ablation.use_h0obs,
-                },
-                "alpha_R_fixed": ablation.alpha_r_fixed,
-            }
-        )
+        write_text(yaml_path, render_yaml(ablation, class_path, output_dir, profile, seed), overwrite=overwrite)
+        generated.append({
+            "key": ablation.key,
+            "description": ablation.description,
+            "yaml": str(yaml_path),
+            "output_prefix": str(chain_dir / ablation.output_prefix),
+            "likelihoods": {"bao": ablation.use_bao, "pantheonplus": ablation.use_sn, "h0obs": ablation.use_h0obs},
+            "alpha_R_fixed": ablation.alpha_r_fixed,
+        })
 
     manifest = {
         "artifact_type": "tierA1_ablation_manifest",
@@ -366,36 +322,48 @@ def write_configs(
         "seed": seed,
         "class_path": class_path,
         "output_dir": str(output_dir),
+        "yaml_dir": str(yaml_dir),
+        "chain_dir": str(chain_dir),
         "generated_configs": generated,
-        "claim_boundary": (
-            "Ablations test the H0_obs mechanism driver. They do not by themselves "
-            "establish decisive full Hubble-tension resolution."
-        ),
+        "h0_likelihood_convention": {
+            "edcl_with_local_h0": "use H0_edcl and derived H0_obs/delta0; do not use direct H0.riess2020",
+            "edcl_no_h0": "no H0_edcl and no direct H0.riess2020",
+        },
+        "claim_boundary": "Ablations test the H0_obs mechanism driver. They do not by themselves establish decisive full Hubble-tension resolution.",
     }
-    manifest_path = output_dir / "tierA1_ablation_manifest.json"
-    write_text(manifest_path, json.dumps(manifest, indent=2) + "\n", overwrite=True)
+    write_text(output_dir / "tierA1_ablation_manifest.json", json.dumps(manifest, indent=2) + "\n", overwrite=True)
     return manifest
 
 
-def validate_run_environment(class_path: str) -> None:
+def build_run_environment(packages_path: str = "") -> Dict[str, str]:
+    env = dict(os.environ)
+    if packages_path:
+        env["COBAYA_PACKAGES_PATH"] = str(Path(packages_path).expanduser().resolve())
+    return env
+
+
+def validate_run_environment(class_path: str, packages_path: str = "") -> Dict[str, str]:
     if not Path(class_path).is_dir():
         raise SystemExit(f"ERROR: CLASS path not found: {class_path}")
     if shutil.which("cobaya-run") is None:
         raise SystemExit("ERROR: cobaya-run not found on PATH. Install Cobaya first.")
-    packages_path = os.environ.get("COBAYA_PACKAGES_PATH", "")
-    if not packages_path:
-        raise SystemExit("ERROR: COBAYA_PACKAGES_PATH is not set.")
-    if not Path(packages_path).exists():
-        raise SystemExit(f"ERROR: COBAYA_PACKAGES_PATH does not exist: {packages_path}")
+    env = build_run_environment(packages_path)
+    selected_packages_path = env.get("COBAYA_PACKAGES_PATH", "")
+    if selected_packages_path and not Path(selected_packages_path).exists():
+        raise SystemExit(f"ERROR: Cobaya packages path does not exist: {selected_packages_path}")
+    if not selected_packages_path:
+        print("NOTE: no Cobaya packages path was supplied. cobaya-run will use Cobaya's default package discovery. If likelihood data are not installed there, rerun with --packages-path /path/to/cobaya_packages.")
+    return env
 
 
-def run_configs(manifest: Dict[str, object]) -> None:
+def run_configs(manifest: Dict[str, object], packages_path: str = "") -> None:
     configs = manifest["generated_configs"]
     assert isinstance(configs, list)
+    env = validate_run_environment(str(manifest["class_path"]), packages_path)
     for item in configs:
         yaml_path = item["yaml"]
         print(f"\nRunning Cobaya: {yaml_path}")
-        subprocess.run(["cobaya-run", str(yaml_path), "-f"], check=True)
+        subprocess.run(["cobaya-run", str(yaml_path), "-f"], check=True, env=env)
 
 
 def load_chain(path: Path) -> Tuple[np.ndarray, List[str]]:
@@ -412,40 +380,27 @@ def weighted_stats(values: np.ndarray, weights: np.ndarray) -> Dict[str, float]:
     mean = float(np.average(values, weights=weights))
     variance = float(np.average((values - mean) ** 2, weights=weights))
     std = float(np.sqrt(variance))
-
     order = np.argsort(values)
     sorted_values = values[order]
     sorted_weights = weights[order]
     cumsum = np.cumsum(sorted_weights)
     cumsum /= cumsum[-1]
-
     def q(prob: float) -> float:
         return float(sorted_values[np.searchsorted(cumsum, prob)])
-
-    return {
-        "mean": mean,
-        "std": std,
-        "q16": q(0.16),
-        "median": q(0.50),
-        "q84": q(0.84),
-    }
+    return {"mean": mean, "std": std, "q16": q(0.16), "median": q(0.50), "q84": q(0.84)}
 
 
 def preferred_component_columns(header: List[str]) -> List[str]:
-    # Avoid double-counting duplicate compact and fully-qualified chi2 columns.
     preferred = []
     for name in ("chi2__BAO", "chi2__SN", "chi2__H0_edcl", "chi2__H0.riess2020"):
         if name in header:
             preferred.append(name)
-
-    # Fallbacks for Cobaya names if compact aliases are absent.
     if "chi2__BAO" not in header:
         preferred.extend([h for h in header if h.startswith("chi2__bao.")])
     if "chi2__SN" not in header:
         preferred.extend([h for h in header if h.startswith("chi2__sn.")])
     if "chi2__H0_edcl" not in header and "chi2__H0.riess2020" not in header:
         preferred.extend([h for h in header if h.startswith("chi2__H0")])
-
     seen = set()
     unique = []
     for name in preferred:
@@ -456,10 +411,14 @@ def preferred_component_columns(header: List[str]) -> List[str]:
 
 
 def find_chain_file(output_dir: Path, ablation: Ablation) -> Optional[Path]:
+    chain_dir = output_dir / "chains"
     candidates = [
+        chain_dir / f"{ablation.output_prefix}.1.txt",
+        chain_dir / ablation.output_prefix / f"{ablation.output_prefix}.1.txt",
         output_dir / f"{ablation.output_prefix}.1.txt",
         output_dir / ablation.output_prefix / f"{ablation.output_prefix}.1.txt",
     ]
+    candidates.extend(sorted(chain_dir.glob(f"{ablation.output_prefix}*.1.txt")))
     candidates.extend(sorted(output_dir.glob(f"{ablation.output_prefix}*.1.txt")))
     for candidate in candidates:
         if candidate.exists():
@@ -472,7 +431,6 @@ def analyze_ablation_chain(chain_path: Path, ablation: Ablation) -> Dict[str, ob
     if "weight" not in header:
         raise ValueError(f"Missing weight column in {chain_path}")
     weights = data[:, header.index("weight")]
-
     out: Dict[str, object] = {
         "key": ablation.key,
         "description": ablation.description,
@@ -481,18 +439,14 @@ def analyze_ablation_chain(chain_path: Path, ablation: Ablation) -> Dict[str, ob
         "effective_samples": float(np.sum(weights)),
         "parameters": {},
     }
-
-    params = ["omega_b", "omega_cdm", "H0", "alpha_R", "H0_obs", "delta0"]
-    for param in params:
+    for param in ["omega_b", "omega_cdm", "H0", "alpha_R", "H0_obs", "delta0"]:
         if param in header:
             out["parameters"][param] = weighted_stats(data[:, header.index(param)], weights)
-
     if "chi2" in header:
         chi2 = data[:, header.index("chi2")]
         best_idx = int(np.argmin(chi2))
         out["chi2_best"] = float(chi2[best_idx])
         out["best_row_index"] = best_idx
-
         components = {}
         for column in preferred_component_columns(header):
             components[column] = float(data[best_idx, header.index(column)])
@@ -500,7 +454,6 @@ def analyze_ablation_chain(chain_path: Path, ablation: Ablation) -> Dict[str, ob
         out["best_fit_component_sum"] = float(sum(components.values())) if components else None
         if components:
             out["best_fit_component_sum_minus_total"] = float(sum(components.values()) - chi2[best_idx])
-
     return out
 
 
@@ -513,17 +466,12 @@ def analyze_outputs(output_dir: Path, ablations: List[Ablation], summary_json: P
             missing.append(ablation.key)
             continue
         results.append(analyze_ablation_chain(chain_path, ablation))
-
     summary = {
         "artifact_type": "tierA1_ablation_summary",
         "output_dir": str(output_dir),
         "available_results": results,
         "missing_chain_outputs": missing,
-        "interpretation_guardrail": (
-            "Use these ablations to assess whether alpha_R activation is driven by "
-            "the local H0_obs likelihood. Do not use them alone for decisive "
-            "Hubble-resolution language."
-        ),
+        "interpretation_guardrail": "Use these ablations to assess whether alpha_R activation is driven by the local H0_obs likelihood. Do not use them alone for decisive Hubble-resolution language.",
     }
     write_text(summary_json, json.dumps(summary, indent=2) + "\n", overwrite=overwrite)
     return summary
@@ -534,73 +482,34 @@ def print_manifest(manifest: Dict[str, object]) -> None:
     for item in manifest["generated_configs"]:
         print(f"  - {item['key']}: {item['yaml']}")
     print(f"\nManifest: {Path(manifest['output_dir']) / 'tierA1_ablation_manifest.json'}")
-    print("\nTo run manually:")
+    print("\nManual run commands, after inspecting the generated YAMLs:")
     for item in manifest["generated_configs"]:
         print(f"  cobaya-run {item['yaml']} -f")
+    print("\nIf your Cobaya likelihood data are not in Cobaya's default package location, use this script's --packages-path option when running with --run.")
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Generate, optionally run, and summarize Tier-A1 EDCL likelihood ablations."
-    )
-    parser.add_argument(
-        "--class-path",
-        default=os.environ.get("CLASS_PATH", "/path/to/class_public"),
-        help="Path to CLASS with EDCL patch. Required to actually run Cobaya; used literally in generated YAMLs.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        default="./chains/tierA1_ablations",
-        help="Output directory for generated YAMLs and Cobaya chains.",
-    )
-    parser.add_argument(
-        "--profile",
-        choices=sorted(PROFILE_SETTINGS),
-        default="production",
-        help="Sampler profile for generated YAMLs.",
-    )
+    parser = argparse.ArgumentParser(description="Generate, optionally run, and summarize Tier-A1 EDCL likelihood ablations.")
+    parser.add_argument("--class-path", default=os.environ.get("CLASS_PATH", "/path/to/class_public"), help="Path to CLASS with EDCL patch. Required to actually run Cobaya; used literally in generated YAMLs.")
+    parser.add_argument("--output-dir", default="./chains/tierA1_ablations", help="Output/work directory for generated YAMLs, chains, and manifest.")
+    parser.add_argument("--packages-path", default="", help="Optional Cobaya packages path to use when --run is supplied. If omitted, Cobaya's default package discovery is used.")
+    parser.add_argument("--profile", choices=sorted(PROFILE_SETTINGS), default="production", help="Sampler profile for generated YAMLs.")
     parser.add_argument("--seed", type=int, default=42, help="MCMC seed.")
-    parser.add_argument(
-        "--ablation",
-        action="append",
-        default=None,
-        help="Ablation key to generate/analyze. Repeat for multiple, or omit/use 'all'.",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Generate YAMLs and print commands without running Cobaya. This is also the default unless --run is set.",
-    )
+    parser.add_argument("--ablation", action="append", default=None, help="Ablation key to generate/analyze. Repeat for multiple, or omit/use 'all'.")
+    parser.add_argument("--dry-run", action="store_true", help="Generate YAMLs and print commands without running Cobaya. This is also the default unless --run is set.")
     parser.add_argument("--run", action="store_true", help="Run cobaya-run for each generated YAML.")
-    parser.add_argument(
-        "--analyze",
-        action="store_true",
-        help="Analyze available ablation chain files in --output-dir and write a summary JSON.",
-    )
-    parser.add_argument(
-        "--summary-json",
-        default="tierA1_ablation_summary.json",
-        help="Path for ablation summary JSON when --analyze is used.",
-    )
+    parser.add_argument("--analyze", action="store_true", help="Analyze available ablation chain files in --output-dir and write a summary JSON.")
+    parser.add_argument("--summary-json", default="tierA1_ablation_summary.json", help="Path for ablation summary JSON when --analyze is used.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite generated YAMLs/summary files.")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
     ablations = selected_ablations(args.ablation or ["all"])
-
-    manifest = write_configs(
-        ablations=ablations,
-        class_path=args.class_path,
-        output_dir=output_dir,
-        profile=args.profile,
-        seed=args.seed,
-        overwrite=args.overwrite,
-    )
+    manifest = write_configs(ablations, args.class_path, output_dir, args.profile, args.seed, overwrite=args.overwrite)
     print_manifest(manifest)
 
     if args.run:
-        validate_run_environment(args.class_path)
-        run_configs(manifest)
+        run_configs(manifest, packages_path=args.packages_path)
     else:
         print("\nCobaya was not run. Use --run to launch MCMC after checking the YAMLs.")
 
@@ -610,7 +519,6 @@ def main() -> int:
         print(f"\nWrote ablation summary: {summary_path}")
         if summary["missing_chain_outputs"]:
             print("Missing chain outputs for: " + ", ".join(summary["missing_chain_outputs"]))
-
     return 0
 
 
