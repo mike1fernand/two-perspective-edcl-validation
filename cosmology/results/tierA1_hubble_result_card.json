@@ -28,13 +28,16 @@
     "delta_BIC_approx_N_1715": 6.3845,
     "BIC_note": "Approximate diagnostic only; exact BIC requires an explicitly defined effective data count."
   },
-  "no_H0_collapse": {
+  "no_H0_collapse_tendency": {
     "alpha_R_mean": 0.0147,
     "alpha_R_sigma": 0.0142,
-    "interpretation": "alpha_R collapses toward zero when the local H0_obs driver is removed."
+    "alpha_R_q95": 0.04969474355,
+    "configured_collapse_pass_threshold_q95": 0.03,
+    "configured_collapse_status": "WARN_threshold_not_met",
+    "interpretation": "alpha_R shifts toward zero when the local H0_obs driver is removed, but the compact no-H0 q95(alpha_R)=0.0497 exceeds the configured q95<=0.03 collapse pass threshold. This supports a collapse tendency, not a configured-threshold pass."
   },
   "claim_discipline": {
-    "allowed_current_wording": "Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.",
+    "allowed_current_wording": "Tier-A1 supports a working H0_obs calibration-drift mechanism in late-only data: alpha_R activates when the local observed-frame H0_obs likelihood is included, and the no-H0 control shifts alpha_R toward zero. The current compact no-H0 summary has q95(alpha_R)=0.0497, which exceeds the configured q95<=0.03 collapse pass threshold, so the no-H0 result supports a collapse tendency rather than a configured-threshold collapse pass.",
     "not_allowed_as_current_Tier_A1_claim": "EDCL decisively resolves the Hubble tension.",
     "next_required_validations": [
       "exact per-likelihood chi2 decomposition",
