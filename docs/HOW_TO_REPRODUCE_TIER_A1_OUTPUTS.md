@@ -2,7 +2,7 @@
 
 This file is the compact reproduction record for the Tier-A1 late-only Hubble validation outputs used by the TP/EDCL paper and repo.
 
-It is intentionally a documentation file, not a storage location for heavy chains, patched CLASS builds, Cobaya packages, or timestamped workdirs. Heavy run outputs should be published as GitHub Release assets, not committed into normal git history.
+It is intentionally a documentation file, not a storage location for heavy chains, patched CLASS builds, Cobaya packages, or timestamped workdirs. Heavy run outputs should be published outside normal git history.
 
 ## Scope
 
@@ -11,16 +11,18 @@ This file covers the current Tier-A1 late-only validation:
 ```text
 LCDM late-only baseline
 EDCL with local observed-frame H0_obs likelihood
-EDCL no-H0 collapse control
+EDCL no-H0 control
 ```
 
 Current claim boundary:
 
 ```text
-Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.
+Tier-A1 supports a working H0_obs calibration-drift mechanism in late-only data: alpha_R activates when the local observed-frame H0_obs likelihood is included, and the no-H0 control shifts alpha_R toward zero.
 ```
 
-Do not use this Tier-A1 result alone to claim decisive full Hubble-tension resolution.
+Do **not** use this Tier-A1 result alone to claim decisive full Hubble-tension resolution.
+
+Do **not** claim that the current no-H0 compact summary passes the stricter pre-registered q95 collapse threshold unless a validator-backed workdir run confirms that threshold.
 
 ## Current chain-verified result artifacts
 
@@ -36,6 +38,12 @@ Current chain audit:
 cosmology/results/tierA1_chain_component_audit.json
 ```
 
+Current compact final summary:
+
+```text
+cosmology/paper_artifacts/final_validation_summary.json
+```
+
 The chain audit records:
 
 ```text
@@ -46,6 +54,68 @@ EDCL formula checks for H0_obs = H0 * (1 + delta0)
 best-fit component accounting from chain columns
 BBN consistency contrast as an external check, not as a fitted likelihood
 ```
+
+## Important current limitation: templates versus production-chain provenance
+
+The committed late-only YAML templates in:
+
+```text
+cosmology/cobaya/*.yaml.in
+```
+
+are guarded source templates for the current H0_obs configuration. They are useful for smoke/setup checks and for preventing stale direct-H0 EDCL configurations.
+
+They should **not yet** be treated as exact rendered production YAML provenance for the compact chain summaries unless the corresponding rendered/updated YAMLs and workdir manifest are supplied.
+
+Reason:
+
+```text
+The committed late-only templates currently fix omega_b and omega_cdm for a minimal late-only smoke/reference configuration, while the compact chain summaries report posterior means and standard deviations for omega_b and omega_cdm.
+```
+
+Therefore, current chain summaries should be described as compact chain-audit summaries, not as fully workdir-backed reproduction from the committed templates alone.
+
+A full referee-grade reproduction still requires:
+
+```text
+the original or regenerated rendered YAMLs
+Cobaya updated YAMLs
+workdir manifest
+CLASS/Cobaya logs
+environment metadata
+validator report
+chain hashes tied to exact YAML hashes
+```
+
+## No-H0 control status
+
+The current compact final summary reports:
+
+```text
+alpha_R_95upper = 0.04969474355
+```
+
+The configured q95 pass threshold in:
+
+```text
+cosmology/config/validation_config.yaml
+```
+
+is:
+
+```text
+q95(alpha_R) <= 0.03
+```
+
+Since `0.0497 > 0.03`, the current compact summary supports a **collapse tendency**, not a threshold pass under the current validation configuration.
+
+Use wording like:
+
+```text
+The no-H0 control shifts alpha_R toward zero, supporting the interpretation that the local H0_obs channel drives activation. In the current compact chain summary, however, the q95 no-H0 value exceeds the stricter pre-registered collapse threshold, so this should be described as a collapse tendency unless a validator-backed workdir run confirms threshold passage.
+```
+
+Avoid wording that describes the current no-H0 compact summary as satisfying the pre-registered collapse criterion unless the validator-backed workdir output actually satisfies the configured threshold.
 
 ## Chain files used for the current audit
 
@@ -65,7 +135,7 @@ fc89568972ec47216fcd2804f949c556d7813329d851651cbf2eb60d897b6b0b  chains/edcl_pr
 99e6b66bce01cdcdb5a91f00d1acefe4c1d10b74559212a03adb1f0f3141d0d0  chains/edcl_no_h0_medium.1.txt
 ```
 
-The chain files should be kept out of normal git history. If published, attach them to a GitHub Release as assets.
+The chain files should be kept out of normal git history. If published, attach them as external release/archive assets rather than committing heavy runtime outputs.
 
 ## Dataset and likelihood configuration
 
@@ -93,7 +163,7 @@ cosmology/likelihoods/H0_edcl_func.py
 
 For EDCL+H0_obs runs, the local anchor must be applied to `H0_obs`, not directly to the theory-frame `H0`.
 
-For the no-H0 collapse run, the local-Hubble likelihood is removed. The no-H0 run is a collapse/control test, not the primary local-H0 fit.
+For the no-H0 control run, the local-Hubble likelihood is removed. The no-H0 run is a control test, not the primary local-H0 fit.
 
 ## H0-likelihood invariants
 
@@ -121,7 +191,7 @@ cosmology/scripts/check_no_doublecount_sh0es.py
 cosmology/scripts/validate_tiera1_lateonly_results.py
 ```
 
-A stale EDCL YAML using direct `H0.riess2020` should now fail before MCMC interpretation.
+A stale EDCL YAML using direct `H0.riess2020` should fail before MCMC interpretation.
 
 ## Current verified headline values
 
@@ -136,6 +206,7 @@ EDCL+H0_obs:
 
 EDCL no-H0:
   alpha_R   = 0.0146723 +/- 0.0141722
+  q95(alpha_R) = 0.0496947
 
 LCDM:
   H0        = 71.3688046 +/- 0.7169926 km/s/Mpc
@@ -161,14 +232,6 @@ For Tier-B, Track-0, and local analysis scripts:
 
 ```bash
 python -m pip install -r requirements.txt
-```
-
-Important NumPy note:
-
-```text
-At least one lint-pack run failed because the environment's NumPy did not expose np.trapezoid.
-A later lint-pack run passed.
-To avoid this environment-dependent failure, use a NumPy version that supports np.trapezoid, or modify Tier-B scripts to use a compatibility fallback such as np.trapz when np.trapezoid is unavailable.
 ```
 
 ### 2. Run Tier-A1 setup-only first
@@ -291,17 +354,6 @@ EDCL compute OK.
 
 If the smoke test fails with unknown EDCL parameters, the CLASS source is not the correct EDCL-patched runtime or the parameter names have drifted.
 
-The remaining from-scratch reproducibility tasks are:
-
-```text
-build patched CLASS/classy from the included patch
-record the exact upstream CLASS commit/tag actually used
-record Python/Cobaya/GetDist versions
-record the build command and platform
-record successful smoke-test output
-publish heavy chains/workdirs as Release assets if needed
-```
-
 ## Workdir outputs from the corrected runner
 
 The corrected runner writes generated runtime artifacts under the timestamped workdir:
@@ -392,12 +444,12 @@ verifies the local anchor is applied to H0_obs, not directly to theory-frame H0
 The lint-pack logs provided for the current validation included these checks:
 
 ```text
-1. clean/reject __pycache__ and .pyc artifacts
-2. scan for known failure patterns
-3. YAML guardrails for EDCL/LCDM separation and numeric traps
-4. local-H0 / SH0ES double-count guard by name/config scan
-5. Python compilation in memory
-6. deterministic unit tests without external datasets
+clean/reject __pycache__ and .pyc artifacts
+scan for known failure patterns
+YAML guardrails for EDCL/LCDM separation and numeric traps
+local-H0 / SH0ES double-count guard by name/config scan
+Python compilation in memory
+deterministic unit tests without external datasets
 ```
 
 The local-H0 / SH0ES scan is a guardrail. It cannot prove PantheonPlus is unanchored unless SH0ES markers appear in config strings.
@@ -406,14 +458,7 @@ The local-H0 / SH0ES scan is a guardrail. It cannot prove PantheonPlus is unanch
 
 The chain files and audit JSON verify the numerical posterior and best-fit component accounting. They do not fully reconstruct the run provenance.
 
-For full referee-grade provenance, preserve or publish timestamped workdirs such as:
-
-```text
-edcl_tiera1_20251221_212236/
-edcl_tiera1_20251221_212444/
-```
-
-or regenerated equivalent workdirs produced by the corrected runner.
+For full referee-grade provenance, preserve or publish timestamped workdirs produced by the corrected runner.
 
 Useful workdir contents include:
 
@@ -426,33 +471,11 @@ run commands
 manifest.json
 checksums
 lint/guard logs
+validator report
 bundle zip
 ```
 
-Do not commit these workdirs into normal git history. Publish them as GitHub Release assets if needed.
-
-## Minimal release-assets recommendation
-
-A clean GitHub Release should attach one zip, for example:
-
-```text
-tierA1_reproducibility_assets.zip
-```
-
-Suggested zip contents:
-
-```text
-chains/lcdm_production.1.txt
-chains/edcl_production.1.txt
-chains/edcl_no_h0_medium.1.txt
-workdirs/edcl_tiera1_20251221_212236/   # if available
-workdirs/edcl_tiera1_20251221_212444/   # if available
-logs/00_lint_pack.log
-checksums/SHA256SUMS.txt
-README_RELEASE_ASSETS.md
-```
-
-If the workdirs are not available, publish the chains and logs only, and keep the documentation explicit that workdir-backed provenance remains outstanding.
+Do not commit these workdirs into normal git history.
 
 ## Current limitations
 
@@ -466,8 +489,15 @@ fair baselines
 Tier-A2/Planck validation
 ```
 
+Additional unresolved provenance notes:
+
+```text
+PantheonPlus no-embedded-SH0ES/local-H0 evidence is not yet filled in cosmology/data_provenance/pantheonplus_note.md.
+The committed smoke/reference templates should not be treated as exact production-chain provenance for the compact chain summaries.
+```
+
 ## Safe current wording
 
 ```text
-Tier-A1 verifies an observed-frame H0_obs calibration channel: alpha_R activates under the local H0_obs likelihood and collapses without it. In this chain set, the total best-fit improvement over LCDM is modest and comes primarily from the H0/H0_obs term, with small BAO/SN reallocations.
+Tier-A1 verifies an observed-frame H0_obs calibration channel: alpha_R activates under the local H0_obs likelihood, and the no-H0 control shifts alpha_R toward zero. In this chain set, however, q95(alpha_R) for the no-H0 control exceeds the stricter configured collapse threshold, so the no-H0 result should be described as a collapse tendency unless a validator-backed workdir run confirms threshold passage. The total best-fit improvement over LCDM is modest and comes primarily from the H0/H0_obs term, with small BAO/SN reallocations.
 ```
