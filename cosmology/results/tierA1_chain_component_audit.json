@@ -3,87 +3,27 @@
   "bbn_consistency_contrast": {
     "guardrail": "External consistency contrast only; BBN was not included as a fitted likelihood in these chains.",
     "pulls": {
-      "edcl_h0obs": {
-        "omega_b_mean": 0.022262033699541283,
-        "omega_b_std": 0.002255123836518224,
-        "pull_sigma": 0.035340699257414065
-      },
-      "edcl_noh0": {
-        "omega_b_mean": 0.02181684456451099,
-        "omega_b_std": 0.0023484442901585134,
-        "pull_sigma": -0.15056264621432708
-      },
-      "lcdm": {
-        "omega_b_mean": 0.025109823103062427,
-        "omega_b_std": 0.000782552391127095,
-        "pull_sigma": 3.0630732002663303
-      }
+      "edcl_h0obs": {"omega_b_mean": 0.022262033699541283, "omega_b_std": 0.002255123836518224, "pull_sigma": 0.035340699257414065},
+      "edcl_noh0": {"omega_b_mean": 0.02181684456451099, "omega_b_std": 0.0023484442901585134, "pull_sigma": -0.15056264621432708},
+      "lcdm": {"omega_b_mean": 0.025109823103062427, "omega_b_std": 0.000782552391127095, "pull_sigma": 3.0630732002663303}
     },
-    "reference": {
-      "omega_b_h2_mean": 0.02218,
-      "omega_b_h2_sigma": 0.00055,
-      "source": "Schoneberg 2024 conservative BBN update; JCAP06(2024)006"
-    }
+    "reference": {"omega_b_h2_mean": 0.02218, "omega_b_h2_sigma": 0.00055, "source": "Schoneberg 2024 conservative BBN update; JCAP06(2024)006"}
   },
   "best_fit_components": {
-    "edcl_h0obs": {
-      "BAO": 10.870399,
-      "H0_obs": 0.0005619891,
-      "SN": 1405.3117,
-      "total": 1416.1826
-    },
-    "edcl_noh0": {
-      "BAO": 11.33518,
-      "SN": 1404.9423,
-      "total": 1416.2775
-    },
-    "lcdm": {
-      "BAO": 11.185356,
-      "H0": 1.0187241,
-      "SN": 1405.0412,
-      "total": 1417.2453
-    }
+    "edcl_h0obs": {"BAO": 10.870399, "H0_obs": 0.0005619891, "SN": 1405.3117, "total": 1416.1826},
+    "edcl_noh0": {"BAO": 11.33518, "SN": 1404.9423, "total": 1416.2775},
+    "lcdm": {"BAO": 11.185356, "H0": 1.0187241, "SN": 1405.0412, "total": 1417.2453}
   },
-  "best_fit_delta_edcl_h0obs_minus_edcl_noh0_diagnostic": {
-    "BAO": -0.46478099999999856,
-    "SN": 0.3694000000000415,
-    "total": -0.09489999999982501
-  },
-  "best_fit_delta_edcl_h0obs_minus_lcdm": {
-    "BAO": -0.3149569999999997,
-    "H0_or_H0_obs": -1.0181621109,
-    "SN": 0.2705000000000837,
-    "total": -1.0626999999999498
-  },
+  "best_fit_delta_edcl_h0obs_minus_edcl_noh0_diagnostic": {"BAO": -0.46478099999999856, "SN": 0.3694000000000415, "total": -0.09489999999982501},
+  "best_fit_delta_edcl_h0obs_minus_lcdm": {"BAO": -0.3149569999999997, "H0_or_H0_obs": -1.0181621109, "SN": 0.2705000000000837, "total": -1.0626999999999498},
   "component_sum_checks": {
-    "edcl_h0obs": {
-      "best_chi2_row_equals_best_minuslogpost_row": true,
-      "best_row_component_sum_minus_total_chi2": 0.00006098909989304957,
-      "component_sum_columns": ["chi2__BAO", "chi2__SN", "chi2__H0_edcl"],
-      "max_abs_component_sum_minus_total_chi2": 0.00009704000012789038
-    },
-    "edcl_noh0": {
-      "best_chi2_row_equals_best_minuslogpost_row": true,
-      "best_row_component_sum_minus_total_chi2": -0.000019999999949504854,
-      "component_sum_columns": ["chi2__BAO", "chi2__SN"],
-      "max_abs_component_sum_minus_total_chi2": 0.00009900000009110954
-    },
-    "lcdm": {
-      "best_chi2_row_equals_best_minuslogpost_row": true,
-      "best_row_component_sum_minus_total_chi2": -0.00001990000009755022,
-      "component_sum_columns": ["chi2__BAO", "chi2__SN", "chi2__H0"],
-      "max_abs_component_sum_minus_total_chi2": 0.00009760000011738157
-    }
+    "edcl_h0obs": {"best_chi2_row_equals_best_minuslogpost_row": true, "best_row_component_sum_minus_total_chi2": 0.00006098909989304957, "component_sum_columns": ["chi2__BAO", "chi2__SN", "chi2__H0_edcl"], "max_abs_component_sum_minus_total_chi2": 0.00009704000012789038},
+    "edcl_noh0": {"best_chi2_row_equals_best_minuslogpost_row": true, "best_row_component_sum_minus_total_chi2": -0.000019999999949504854, "component_sum_columns": ["chi2__BAO", "chi2__SN"], "max_abs_component_sum_minus_total_chi2": 0.00009900000009110954},
+    "lcdm": {"best_chi2_row_equals_best_minuslogpost_row": true, "best_row_component_sum_minus_total_chi2": -0.00001990000009755022, "component_sum_columns": ["chi2__BAO", "chi2__SN", "chi2__H0"], "max_abs_component_sum_minus_total_chi2": 0.00009760000011738157}
   },
   "formula_checks": {
-    "edcl_h0obs": {
-      "H0_obs_equals_H0_times_1_plus_delta0_max_abs_residual": 0.0000011534501282994825,
-      "delta0_equals_alpha_R_times_0.7542_max_abs_residual": 0.000000008456000011314302
-    },
-    "edcl_noh0": {
-      "H0_obs_equals_H0_times_1_plus_delta0_max_abs_residual": 0.0000010089677715541256,
-      "delta0_equals_alpha_R_times_0.7542_max_abs_residual": 0.000000000870800001551153
-    }
+    "edcl_h0obs": {"H0_obs_equals_H0_times_1_plus_delta0_max_abs_residual": 0.0000011534501282994825, "delta0_equals_alpha_R_times_0.7542_max_abs_residual": 0.000000008456000011314302},
+    "edcl_noh0": {"H0_obs_equals_H0_times_1_plus_delta0_max_abs_residual": 0.0000010089677715541256, "delta0_equals_alpha_R_times_0.7542_max_abs_residual": 0.000000000870800001551153}
   },
   "headline_weighted_posteriors": {
     "edcl_h0obs": {
@@ -97,7 +37,7 @@
     "edcl_noh0": {
       "H0": {"mean": 68.01461456451099, "q16": 65.879596, "q84": 70.314695, "std": 1.969324072542035},
       "H0_obs": {"mean": 68.76275655877667, "q16": 66.539963, "q84": 71.012945, "std": 1.966240727518786},
-      "alpha_R": {"mean": 0.014672302622016724, "q16": 0.0023052025, "q84": 0.028343251, "std": 0.0141722356290775},
+      "alpha_R": {"mean": 0.014672302622016724, "q16": 0.0023052025, "q84": 0.028343251, "std": 0.0141722356290775, "q95": 0.04969474355},
       "delta0": {"mean": 0.011065850637737016, "q16": 0.0017385837, "q84": 0.02137648, "std": 0.010688700112370917},
       "omega_b": {"mean": 0.02181684456451099, "q16": 0.019176408, "q84": 0.024663406, "std": 0.0023484442901585134},
       "omega_cdm": {"mean": 0.12213917831315706, "q16": 0.11472745, "q84": 0.12939949, "std": 0.00725736337630061}
@@ -114,7 +54,8 @@
     "lcdm": {"path": "/mnt/data/lcdm_production.1(1).txt", "sha256": "8230ad37b61ec7d1c7d8d0d813c5cc8d54e48b344e4d201c14f736223b7730f5", "sha256_matches_manifest": true}
   },
   "not_supported_by_uploaded_chains": "The uploaded chains do not support the rough heuristic that EDCL gains about -2.6 in H0 while paying about +1.5 in BAO+SN.",
-  "paper_safe_interpretation": "Tier-A1 verifies an observed-frame H0_obs calibration channel: alpha_R activates under the local H0_obs likelihood and collapses without it. In this chain set, the total best-fit improvement over LCDM is modest and comes primarily from the H0/H0_obs term, with small BAO/SN reallocations.",
+  "collapse_threshold_status": {"edcl_noh0_alpha_R_q95": 0.04969474355, "configured_collapse_pass_threshold_q95": 0.03, "status": "WARN_threshold_not_met", "interpretation": "The no-H0 control shifts alpha_R toward zero, but the compact chain summary exceeds the configured q95<=0.03 collapse pass threshold. Describe this as a collapse tendency, not a configured-threshold collapse pass."},
+  "paper_safe_interpretation": "Tier-A1 verifies an observed-frame H0_obs calibration channel: alpha_R activates under the local H0_obs likelihood, and the no-H0 control shifts alpha_R toward zero. In this chain set, however, q95(alpha_R) for the no-H0 control exceeds the configured collapse pass threshold, so the no-H0 result should be described as a collapse tendency rather than a configured-threshold pass. The total best-fit improvement over LCDM is modest and comes primarily from the H0/H0_obs term, with small BAO/SN reallocations.",
   "remaining_limitations": [
     "Best-fit component decomposition is directly from chain columns and is safe to use as Tier-A1 chain-verified accounting.",
     "Posterior mean component values, correlations, and alpha_R bins are diagnostics of sampled posterior geometry, not model-comparison evidence.",
