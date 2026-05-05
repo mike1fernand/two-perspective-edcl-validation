@@ -45,9 +45,9 @@
     }
   },
   "current_claim_discipline": {
-    "allowed_current_wording": "Tier-A1 validates a working H0_obs calibration-drift mechanism and activation/collapse behavior in late-only data.",
+    "allowed_current_wording": "Tier-A1 supports EDCL activation with the observed-frame local-H0 channel and no-H0 best-fit/profile collapse toward zero. The strict no-H0 posterior-tail q95 criterion is not passed: sampled-density no-H0 fails, and fixed-density same-model no-H0 remains a near-threshold failure. The current result is mechanism-level evidence, not a completed Hubble-tension resolution.",
     "not_allowed_as_current_Tier_A1_claim": "EDCL decisively resolves the Hubble tension.",
-    "current_result_status": "mechanism_activation_not_decisive_resolution",
+    "current_result_status": "mechanism_activation_profile_collapse_q95_not_passed",
     "next_required_validations": [
       "workdir-backed provenance for YAML/config/log/environment state",
       "likelihood ablations",
@@ -56,5 +56,33 @@
       "Tier-A2 Planck validation",
       "documented Bayesian-evidence provenance if evidence claims are made"
     ]
+  },
+  "current_noh0_checkpointed_diagnostics_2026_05_04": {
+    "claim_boundary": "Tier-A1 supports EDCL activation with the observed-frame local-H0 channel and no-H0 best-fit/profile collapse toward zero. The strict no-H0 posterior-tail q95 criterion is not passed: sampled-density no-H0 fails, and fixed-density same-model no-H0 remains a near-threshold failure. The current result is mechanism-level evidence, not a completed Hubble-tension resolution.",
+    "configured_q95_threshold": 0.03,
+    "sampled_density_no_h0": {
+      "q95_alpha_R_weighted": 0.047027602,
+      "best_alpha_R": 6.2704335e-05,
+      "status": "FAIL_threshold_not_met"
+    },
+    "fixed_density_no_h0": {
+      "q95_alpha_R_weighted": 0.034149371,
+      "best_alpha_R": 1.5474408e-05,
+      "status": "NEAR_THRESHOLD_FAIL"
+    },
+    "fixed_density_p1p2_combined_no_h0": {
+      "q95_alpha_R_weighted": 0.033860544,
+      "status": "NEAR_THRESHOLD_FAIL"
+    },
+    "profile_minimization": {
+      "delta_chi2_alpha_R_0p03_vs_0": 4.635236,
+      "interpretation": "profile-level collapse toward alpha_R=0 supported"
+    },
+    "bao_sn_diagnostic_ablations": {
+      "claim_scope": "diagnostic_only_not_validation_gate",
+      "bao_only_q95_alpha_R": 0.120856,
+      "sn_only_q95_alpha_R": 0.153656,
+      "interpretation": "best fits near alpha_R=0 but individual likelihood sectors retain broad positive tails"
+    }
   }
 }

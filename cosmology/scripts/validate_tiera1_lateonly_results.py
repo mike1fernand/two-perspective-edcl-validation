@@ -649,10 +649,11 @@ def validate(workdir: Path, config_path: Path, profile_requested: str) -> Tuple[
             continue
 
         w = merged.col("weight") or [1.0] * merged.n_rows
-        n_weighted = float(sum(w))
+        sum_weights = float(sum(w))
+        ess = _effective_sample_size(w)
 
-        if min_samples > 0 and n_weighted < min_samples:
-            _gate_or_warn(f"{run_key}: low sample count (sum weights) = {n_weighted:.0f} < min_samples={min_samples}")
+        if min_samples > 0 and ess < min_samples:
+            _gate_or_warn(f"{run_key}: low effective sample size (ESS) = {ess:.0f} < min_samples={min_samples}; sum(weights)={sum_weights:.0f}")
 
         param_summary: Dict[str, Any] = {}
         for p in track_params:
@@ -664,7 +665,10 @@ def validate(workdir: Path, config_path: Path, profile_requested: str) -> Tuple[
                 "q05": _weighted_quantile(col, w, 0.05),
                 "q50": _weighted_quantile(col, w, 0.50),
                 "q95": _weighted_quantile(col, w, 0.95),
+                "unweighted_q95_diagnostic": float(np.quantile(col, 0.95)) if "np" in globals() else None,
             }
+            if p == "alpha_R":
+                param_summary[p]["tail_ess_gt_0p03"] = _tail_effective_sample_size(col, w, 0.03)
 
         chi2_total_col = _first_matching(merged.columns, chi2_total_patterns)
         bestfit: Dict[str, Any] = {"method": None, "chi2_total_bestfit": None, "components": {}}
@@ -699,7 +703,8 @@ def validate(workdir: Path, config_path: Path, profile_requested: str) -> Tuple[
             "updated_yaml": str(updated_yaml) if updated_yaml else None,
             "chain_files": [str(p) for p in chain_files],
             "n_rows": merged.n_rows,
-            "n_samples_weighted": n_weighted,
+            "sum_weights": sum_weights,
+            "effective_sample_size": ess,
             "columns": merged.columns,
             "tracked_params": param_summary,
             "bestfit": bestfit,
@@ -946,7 +951,7 @@ def _make_report(
         if len(rr.get("chain_files", [])) > 10:
             md.append(f"  - ... ({len(rr.get('chain_files', [])) - 10} more)\n")
         if "n_rows" in rr:
-            md.append(f"- Samples: rows={rr.get('n_rows')}, sum(weights)={_format_float(rr.get('n_samples_weighted'))}\n")
+            md.append(f"- Samples: rows={rr.get('n_rows')}, sum(weights)={_format_float(rr.get('sum_weights'))}\n")
         md.append(f"- Updated YAML: `{rr.get('updated_yaml')}`\n" if rr.get("updated_yaml") else "- Updated YAML: **missing**\n")
 
         tps = rr.get("tracked_params", {}) or {}

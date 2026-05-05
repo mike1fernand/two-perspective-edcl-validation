@@ -85,6 +85,25 @@ def _weight_column(chain: np.ndarray, header: List[str]) -> np.ndarray:
     return np.ones(chain.shape[0], dtype=float)
 
 
+
+
+def effective_sample_size(weights: np.ndarray) -> float:
+    weights = np.asarray(weights, dtype=float)
+    total = float(np.sum(weights))
+    denom = float(np.sum(weights ** 2))
+    if denom <= 0 or not np.isfinite(denom):
+        return float("nan")
+    return float(total ** 2 / denom)
+
+
+def tail_effective_sample_size(values: np.ndarray, weights: np.ndarray, threshold: float) -> float:
+    values = np.asarray(values, dtype=float)
+    weights = np.asarray(weights, dtype=float)
+    mask = values > threshold
+    if not np.any(mask):
+        return 0.0
+    return effective_sample_size(weights[mask])
+
 def weighted_quantile(values: np.ndarray, weights: np.ndarray, q: float) -> float:
     values = np.asarray(values, dtype=float)
     weights = np.asarray(weights, dtype=float)
@@ -209,7 +228,16 @@ def formula_consistency(chain: np.ndarray, header: List[str]) -> Dict[str, Any]:
 def analyze_chain(path: str, name: str, is_edcl: bool = False) -> Dict[str, Any]:
     chain, header = load_chain(path)
     weights = _weight_column(chain, header)
-    result: Dict[str, Any] = {"name": name, "path": str(path), "n_samples": int(chain.shape[0]), "eff_samples": float(np.sum(weights)), "columns": header, "parameters": {}, "bestfit": bestfit_summary(chain, header)}
+    result: Dict[str, Any] = {
+        "name": name,
+        "path": str(path),
+        "n_samples": int(chain.shape[0]),
+        "sum_weights": float(np.sum(weights)),
+        "effective_sample_size": effective_sample_size(weights),
+        "columns": header,
+        "parameters": {},
+        "bestfit": bestfit_summary(chain, header),
+    }
     for param in ["H0", "omega_b", "omega_cdm"]:
         col = _get_column(chain, header, param)
         if col is not None:
@@ -219,6 +247,9 @@ def analyze_chain(path: str, name: str, is_edcl: bool = False) -> Dict[str, Any]
             col = _get_column(chain, header, param)
             if col is not None:
                 result["parameters"][param] = weighted_stats(col, weights)
+                if param == "alpha_R":
+                    result["alpha_R_tail_ess_gt_0p03"] = tail_effective_sample_size(col, weights, CONFIGURED_COLLAPSE_Q95_THRESHOLD)
+                    result["alpha_R_unweighted_q95_diagnostic"] = float(np.quantile(col, 0.95))
         fc = formula_consistency(chain, header)
         if fc:
             result["formula_consistency"] = fc
@@ -234,15 +265,16 @@ def run_validation_tests(results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[s
     tests: Dict[str, Dict[str, Any]] = {}
     if "edcl_with_h0" in results and "alpha_R" in results["edcl_with_h0"].get("parameters", {}):
         alpha = results["edcl_with_h0"]["parameters"]["alpha_R"]
-        threshold = 0.02
+        threshold = 0.03
         tests["activation"] = {
-            "description": "alpha_R activates with the local H0_obs likelihood",
+            "description": "alpha_R activates with the local H0_obs likelihood; aligned with validation_config.yaml q50 >= 0.03",
             "alpha_R_mean": alpha["mean"],
             "alpha_R_std": alpha["std"],
+            "alpha_R_q50": alpha["median"],
             "alpha_R_q16": alpha["q16"],
             "alpha_R_q84": alpha["q84"],
             "threshold": threshold,
-            "pass": bool(alpha["q16"] > threshold),
+            "pass": bool(alpha["median"] >= threshold),
             "note": "Standalone chain-analyzer check; canonical workdir validator uses validation_config.yaml.",
         }
     if "edcl_with_h0" in results and "edcl_no_h0" in results:
@@ -251,6 +283,7 @@ def run_validation_tests(results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[s
         if with_h0 and without_h0:
             q95 = without_h0.get("q95", float("nan"))
             mean_ratio = without_h0["mean"] / with_h0["mean"] if with_h0.get("mean", 0) > 0 else float("nan")
+            configured_relative_ratio = q95 / with_h0.get("median", float("nan")) if with_h0.get("median", 0) > 0 else float("nan")
             threshold_pass = bool(np.isfinite(q95) and q95 <= CONFIGURED_COLLAPSE_Q95_THRESHOLD)
             tests["collapse_tendency"] = {
                 "description": "alpha_R shifts toward zero without the local H0_obs likelihood; configured collapse pass requires q95(alpha_R) <= 0.03",
@@ -259,6 +292,9 @@ def run_validation_tests(results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[s
                 "alpha_R_without_h0_mean": without_h0["mean"],
                 "alpha_R_without_h0_q95": q95,
                 "mean_ratio_diagnostic": mean_ratio,
+                "configured_relative_collapse_ratio_q95_noh0_over_q50_withH0": configured_relative_ratio,
+                "configured_relative_collapse_threshold": 0.5,
+                "configured_relative_collapse_pass": bool(np.isfinite(configured_relative_ratio) and configured_relative_ratio <= 0.5),
                 "configured_q95_pass_threshold": CONFIGURED_COLLAPSE_Q95_THRESHOLD,
                 "status": "PASS_threshold_met" if threshold_pass else "WARN_threshold_not_met",
                 "pass": threshold_pass,
@@ -294,7 +330,7 @@ def print_results(results: Dict[str, Dict[str, Any]], tests: Dict[str, Dict[str,
     for _, res in results.items():
         print(f"\n{res['name']}:")
         print(f"  Path: {res['path']}")
-        print(f"  Samples: {res['n_samples']}, Effective: {_fmt(res['eff_samples'], 0)}")
+        print(f"  Samples: {res['n_samples']}, sum(weights): {_fmt(res.get('sum_weights'), 0)}, ESS: {_fmt(res.get('effective_sample_size'), 0)}")
         params = res.get("parameters", {})
         for param in ["H0", "alpha_R", "delta0", "H0_obs"]:
             if param in params:
@@ -394,7 +430,7 @@ def main() -> int:
     if args.output:
         output_data = {
             "analysis_type": "standalone_chain_analysis",
-            "claim_boundary": "mechanism activation with no-H0 collapse tendency only; not decisive full Hubble-tension resolution",
+            "claim_boundary": "mechanism activation plus no-H0 profile-collapse evidence; strict posterior-tail q95 not passed; not a completed Hubble-tension resolution",
             "constants": {"RIESS_H0_MEAN": RIESS_H0_MEAN, "RIESS_H0_STD": RIESS_H0_STD, "EDCL_F_NORM": EDCL_F_NORM, "CONFIGURED_COLLAPSE_Q95_THRESHOLD": CONFIGURED_COLLAPSE_Q95_THRESHOLD},
             "chains": results,
             "tests": tests,

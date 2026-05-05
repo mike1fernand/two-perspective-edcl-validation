@@ -329,7 +329,7 @@ def write_configs(ablations: List[Ablation], class_path: str, output_dir: Path, 
             "edcl_with_local_h0": "use H0_edcl and derived H0_obs/delta0; do not use direct H0.riess2020",
             "edcl_no_h0": "no H0_edcl and no direct H0.riess2020",
         },
-        "claim_boundary": "Ablations test the H0_obs mechanism driver. They do not by themselves establish decisive full Hubble-tension resolution.",
+        "claim_boundary": "Ablations test the H0_obs mechanism driver. BAO-only and SN-only runs are diagnostic-only and do not by themselves establish a BAO+SN no-H0 q95 pass or a completed Hubble-tension resolution.",
     }
     write_text(output_dir / "tierA1_ablation_manifest.json", json.dumps(manifest, indent=2) + "\n", overwrite=True)
     return manifest
@@ -376,6 +376,21 @@ def load_chain(path: Path) -> Tuple[np.ndarray, List[str]]:
     return data, header
 
 
+def effective_sample_size(weights: np.ndarray) -> float:
+    total = float(np.sum(weights))
+    denom = float(np.sum(weights ** 2))
+    if denom <= 0:
+        return float("nan")
+    return float(total ** 2 / denom)
+
+
+def tail_effective_sample_size(values: np.ndarray, weights: np.ndarray, threshold: float) -> float:
+    mask = values > threshold
+    if not np.any(mask):
+        return 0.0
+    return effective_sample_size(weights[mask])
+
+
 def weighted_stats(values: np.ndarray, weights: np.ndarray) -> Dict[str, float]:
     mean = float(np.average(values, weights=weights))
     variance = float(np.average((values - mean) ** 2, weights=weights))
@@ -387,7 +402,7 @@ def weighted_stats(values: np.ndarray, weights: np.ndarray) -> Dict[str, float]:
     cumsum /= cumsum[-1]
     def q(prob: float) -> float:
         return float(sorted_values[np.searchsorted(cumsum, prob)])
-    return {"mean": mean, "std": std, "q16": q(0.16), "median": q(0.50), "q84": q(0.84)}
+    return {"mean": mean, "std": std, "q05": q(0.05), "q16": q(0.16), "median": q(0.50), "q84": q(0.84), "q95": q(0.95)}
 
 
 def preferred_component_columns(header: List[str]) -> List[str]:
@@ -436,12 +451,17 @@ def analyze_ablation_chain(chain_path: Path, ablation: Ablation) -> Dict[str, ob
         "description": ablation.description,
         "chain": str(chain_path),
         "n_rows": int(data.shape[0]),
-        "effective_samples": float(np.sum(weights)),
+        "sum_weights": float(np.sum(weights)),
+        "effective_sample_size": effective_sample_size(weights),
         "parameters": {},
     }
     for param in ["omega_b", "omega_cdm", "H0", "alpha_R", "H0_obs", "delta0"]:
         if param in header:
-            out["parameters"][param] = weighted_stats(data[:, header.index(param)], weights)
+            values = data[:, header.index(param)]
+            out["parameters"][param] = weighted_stats(values, weights)
+            if param == "alpha_R":
+                out["alpha_R_tail_ess_gt_0p03"] = tail_effective_sample_size(values, weights, 0.03)
+                out["alpha_R_unweighted_q95_diagnostic"] = float(np.quantile(values, 0.95))
     if "chi2" in header:
         chi2 = data[:, header.index("chi2")]
         best_idx = int(np.argmin(chi2))
@@ -471,7 +491,7 @@ def analyze_outputs(output_dir: Path, ablations: List[Ablation], summary_json: P
         "output_dir": str(output_dir),
         "available_results": results,
         "missing_chain_outputs": missing,
-        "interpretation_guardrail": "Use these ablations to assess whether alpha_R activation is driven by the local H0_obs likelihood. Do not use them alone for decisive Hubble-resolution language.",
+        "interpretation_guardrail": "Use these ablations to assess whether alpha_R activation is driven by the local H0_obs likelihood. Do not use BAO-only or SN-only q95 values as validation gates; they are diagnostic-only.",
     }
     write_text(summary_json, json.dumps(summary, indent=2) + "\n", overwrite=overwrite)
     return summary

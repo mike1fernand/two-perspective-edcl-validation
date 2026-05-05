@@ -85,9 +85,9 @@ Canonical current Tier-A1 result card:
 
 Current Tier-A1 status:
 
-- Tier-A1 supports a working `H0_obs` calibration-drift mechanism in late-only data: `alpha_R` activates when the local observed-frame `H0_obs` likelihood is included, and the no-H0 control shifts `alpha_R` toward zero. The current compact no-H0 summary has `q95(alpha_R)=0.0497`, which exceeds the configured `q95<=0.03` collapse pass threshold, so the no-H0 result supports a collapse tendency rather than a configured-threshold collapse pass.
+- Tier-A1 supports a working `H0_obs` calibration-drift mechanism in late-only data: `alpha_R` activates when the local observed-frame `H0_obs` likelihood is included, and the no-H0 control shifts `alpha_R` toward zero. The old compact no-H0 unweighted row quantile `q95(alpha_R)=0.0497` is superseded for current claim wording. Current weighted diagnostics give sampled-density no-H0 `q95(alpha_R)=0.0470`, fixed-density no-H0 `q95(alpha_R)=0.0341`, and same-model P1/P2 fixed-density no-H0 `q95(alpha_R)=0.033860544`; all exceed the configured `q95<=0.03` posterior-tail threshold, so the no-H0 result supports profile-level collapse/collapse tendency rather than a threshold pass.
 - Best-fit component accounting is chain-verified in `cosmology/results/tierA1_chain_component_audit.json`: EDCL+H0_obs vs LCDM gives `Delta chi2 = -1.0627`, with H0/H0_obs = `-1.0182`, BAO = `-0.3150`, and SN = `+0.2705`.
-- Stronger claims still require workdir-backed provenance, likelihood ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
+- Stronger claims still require workdir-backed provenance, checkpointed BAO/SN diagnostic ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
 
 Tier-A1 produces:
 
@@ -104,3 +104,20 @@ Generated Tier-A1 outputs are not intended for normal git history. Heavy run art
 Next artifact needed:
 
 - timestamped Tier-A workdir artifacts for YAML/config/log/environment provenance, especially `edcl_tiera1_20251221_212236/` and `edcl_tiera1_20251221_212444/`, or regenerated equivalent workdirs produced by the corrected runner.
+
+## Current no-H0 checkpointed diagnostics status (2026-05-04)
+
+Tier-A1 should be described as a **mechanism-level Hubble calibration-channel test**, not as a completed Hubble-tension resolution.
+
+Current claim ladder:
+
+| Diagnostic | Current status | Interpretation |
+|---|---|---|
+| With-H0 activation | Supported / pass | `alpha_R` activates when the local observed-frame `H0_obs` channel is included. |
+| No-H0 best-fit/profile collapse | Supported | No-H0 best fits move to `alpha_R ≈ 0`; fixed-alpha profile diagnostics penalize `alpha_R=0.03` by `Delta chi2 ≈ 4.64` relative to `alpha_R=0`. |
+| No-H0 posterior-tail q95 collapse | **Not passed** | Sampled-density no-H0 gives `q95(alpha_R)=0.0470`; fixed-density no-H0 gives `q95(alpha_R)=0.0341`; same-model P1/P2 fixed-density repeat gives `q95(alpha_R)=0.033860544`, still above the configured `0.03` threshold. |
+| Full Hubble-tension resolution | Not established | Full Planck/CMB, distance-ladder/`M_B`, growth, fair-baseline, and provenance checks remain future validation targets. |
+
+BAO-only and SN-only no-H0 runs are **diagnostic ablations only**, not validation gates. In the archived checkpoint diagnostics, they place the best fit near `alpha_R=0` while retaining broad positive-amplitude tails (`q95≈0.120856` for BAO-only and `q95≈0.153656` for SN-only). This supports the interpretation that the residual no-H0 q95 failure is a weak-identifiability/posterior-volume issue in the compact late-time test, not a best-fit preference for nonzero EDCL drift.
+
+Do not state that EDCL resolves the Hubble tension or that the no-H0 q95 threshold passes. Use: **activation plus profile-collapse evidence; posterior-tail q95 not passed**.

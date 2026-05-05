@@ -20,7 +20,7 @@ Current claim boundary:
 Tier-A1 supports a working H0_obs calibration-drift mechanism in late-only data: alpha_R activates when the local observed-frame H0_obs likelihood is included, and the no-H0 control shifts alpha_R toward zero.
 ```
 
-Do **not** use this Tier-A1 result alone to claim decisive full Hubble-tension resolution.
+Do **not** use this Tier-A1 result alone to claim completed Hubble-tension resolution.
 
 Do **not** claim that the current no-H0 compact summary passes the stricter pre-registered q95 collapse threshold unless a validator-backed workdir run confirms that threshold.
 
@@ -92,7 +92,7 @@ chain hashes tied to exact YAML hashes
 The current compact final summary reports:
 
 ```text
-alpha_R_95upper = 0.04969474355
+legacy_unweighted_row_alpha_R_95upper = 0.04969474355; current weighted q95 values are sampled-density 0.0470, fixed-density 0.0341, and same-model P1/P2 fixed-density 0.033860544
 ```
 
 The configured q95 pass threshold in:
@@ -107,12 +107,12 @@ is:
 q95(alpha_R) <= 0.03
 ```
 
-Since `0.0497 > 0.03`, the current compact summary supports a **collapse tendency**, not a threshold pass under the current validation configuration.
+Since the current weighted no-H0 posterior-tail diagnostics remain above `0.03` (`0.0470` sampled-density; `0.0341` fixed-density; `0.033860544` same-model P1/P2 fixed-density), the current result supports **activation plus profile-collapse evidence**, not a strict q95 posterior-tail threshold pass.
 
 Use wording like:
 
 ```text
-The no-H0 control shifts alpha_R toward zero, supporting the interpretation that the local H0_obs channel drives activation. In the current compact chain summary, however, the q95 no-H0 value exceeds the stricter pre-registered collapse threshold, so this should be described as a collapse tendency unless a validator-backed workdir run confirms threshold passage.
+The no-H0 control shifts alpha_R toward zero, supporting the interpretation that the local H0_obs channel drives activation. In the current weighted diagnostics, however, the q95 no-H0 values exceed the stricter pre-registered collapse threshold, so this should be described as profile-level collapse/collapse tendency unless a future validator-backed workdir run confirms threshold passage.
 ```
 
 Avoid wording that describes the current no-H0 compact summary as satisfying the pre-registered collapse criterion unless the validator-backed workdir output actually satisfies the configured threshold.
@@ -206,7 +206,7 @@ EDCL+H0_obs:
 
 EDCL no-H0:
   alpha_R   = 0.0146723 +/- 0.0141722
-  q95(alpha_R) = 0.0496947
+  legacy unweighted-row q95(alpha_R) = 0.0496947; current weighted q95 values are sampled-density 0.0470, fixed-density 0.0341, and same-model P1/P2 fixed-density 0.033860544
 
 LCDM:
   H0        = 71.3688046 +/- 0.7169926 km/s/Mpc
@@ -501,3 +501,24 @@ The committed smoke/reference templates should not be treated as exact productio
 ```text
 Tier-A1 verifies an observed-frame H0_obs calibration channel: alpha_R activates under the local H0_obs likelihood, and the no-H0 control shifts alpha_R toward zero. In this chain set, however, q95(alpha_R) for the no-H0 control exceeds the stricter configured collapse threshold, so the no-H0 result should be described as a collapse tendency unless a validator-backed workdir run confirms threshold passage. The total best-fit improvement over LCDM is modest and comes primarily from the H0/H0_obs term, with small BAO/SN reallocations.
 ```
+
+## Current no-H0 checkpointed diagnostics status (2026-05-04)
+
+Tier-A1 should be described as a **mechanism-level Hubble calibration-channel test**, not as a completed Hubble-tension resolution.
+
+Current claim ladder:
+
+| Diagnostic | Current status | Interpretation |
+|---|---|---|
+| With-H0 activation | Supported / pass | `alpha_R` activates when the local observed-frame `H0_obs` channel is included. |
+| No-H0 best-fit/profile collapse | Supported | No-H0 best fits move to `alpha_R ≈ 0`; fixed-alpha profile diagnostics penalize `alpha_R=0.03` by `Delta chi2 ≈ 4.64` relative to `alpha_R=0`. |
+| No-H0 posterior-tail q95 collapse | **Not passed** | Sampled-density no-H0 gives `q95(alpha_R)=0.0470`; fixed-density no-H0 gives `q95(alpha_R)=0.0341`; same-model P1/P2 fixed-density repeat gives `q95(alpha_R)=0.033860544`, still above the configured `0.03` threshold. |
+| Full Hubble-tension resolution | Not established | Full Planck/CMB, distance-ladder/`M_B`, growth, fair-baseline, and provenance checks remain future validation targets. |
+
+BAO-only and SN-only no-H0 runs are **diagnostic ablations only**, not validation gates. In the archived checkpoint diagnostics, they place the best fit near `alpha_R=0` while retaining broad positive-amplitude tails (`q95≈0.120856` for BAO-only and `q95≈0.153656` for SN-only). This supports the interpretation that the residual no-H0 q95 failure is a weak-identifiability/posterior-volume issue in the compact late-time test, not a best-fit preference for nonzero EDCL drift.
+
+Do not state that EDCL resolves the Hubble tension or that the no-H0 q95 threshold passes. Use: **activation plus profile-collapse evidence; posterior-tail q95 not passed**.
+
+## Checkpointed no-H0 diagnostics reproduction
+
+Use the archived asset `release_assets/noh0_checkpointed_diagnostics_2026-05-04.zip` or rerun `cosmology/scripts/noh0_checkpointed_diagnostics.py`. The key result row is `COMBINED_P1P2_A1b_ultra_fixed_noH0`, with weighted `q95(alpha_R)=0.033860544`, which is above the configured `0.03` threshold. BAO-only and SN-only rows are diagnostic-only and must not be treated as validation gates.
