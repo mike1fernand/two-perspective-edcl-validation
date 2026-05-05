@@ -50,7 +50,7 @@
     "current_result_status": "mechanism_activation_profile_collapse_q95_not_passed",
     "next_required_validations": [
       "workdir-backed provenance for YAML/config/log/environment state",
-      "likelihood ablations",
+      "broader likelihood-sector and fair-baseline ablations beyond the archived BAO/SN checkpoint diagnostics",
       "kernel/prior/local-anchor robustness scans",
       "fair baselines",
       "Tier-A2 Planck validation",

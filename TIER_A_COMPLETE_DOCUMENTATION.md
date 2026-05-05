@@ -108,7 +108,7 @@ The following are resolution targets, not completed Tier-A1 claims:
 
 ```text
 full workdir-backed provenance for the original component accounting
-likelihood ablations showing activation is specifically driven by local H0_obs
+archived BAO/SN checkpoint diagnostics plus broader likelihood-sector ablations showing activation is specifically driven by local H0_obs
 kernel, prior, and local-anchor robustness scans
 fair baselines against wCDM, w0waCDM, and generic calibration offsets
 full Tier-A2 Planck likelihood validation
@@ -274,7 +274,7 @@ Publish heavy chain/workdir artifacts as GitHub Release assets if needed for ext
 2. Preserve `cosmology/results/tierA1_chain_component_audit.json` as the current chain-verified best-fit component accounting.
 3. Maintain the lightweight `H0_obs` likelihood regression test in `tests/test_h0_obs_likelihood.py`.
 4. Keep the corrected H0-likelihood guard and workdir validator active.
-5. Run likelihood ablations.
+5. Run broader likelihood-sector/fair-baseline ablations beyond the archived BAO/SN checkpoint diagnostics.
 6. Run kernel/prior/local-anchor robustness scans.
 7. Run Planck distance-prior preflight and then full Tier-A2.
 8. Add BBN/integrated-distance paper enhancements only after the relevant chain outputs are verified.

@@ -214,7 +214,7 @@ traceability.md
 
 Tier-A1 supports a working `H0_obs` calibration-drift mechanism in late-only data: `alpha_R` activates when the local observed-frame `H0_obs` likelihood is included, and the no-H0 control shifts `alpha_R` toward zero. The old compact no-H0 unweighted row quantile `q95(alpha_R)=0.0497` is superseded for current claim wording. Current weighted diagnostics give sampled-density no-H0 `q95(alpha_R)=0.0470`, fixed-density no-H0 `q95(alpha_R)=0.0341`, and same-model P1/P2 fixed-density no-H0 `q95(alpha_R)=0.033860544`; all exceed the configured `q95<=0.03` posterior-tail threshold, so the no-H0 result supports profile-level collapse/collapse tendency rather than a threshold pass.
 
-Tier-A1 alone should not be described as a completed Hubble-tension resolution. Stronger claims require additional provenance, checkpointed BAO/SN diagnostic ablations, robustness scans, fair baselines, and Tier-A2/Planck validation.
+Tier-A1 alone should not be described as a completed Hubble-tension resolution. Stronger claims require additional provenance, broader likelihood-sector/fair-baseline robustness scans beyond the archived BAO/SN checkpoint diagnostics, and Tier-A2/Planck validation.
 
 ## License
 

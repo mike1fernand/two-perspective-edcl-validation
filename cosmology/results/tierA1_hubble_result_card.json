@@ -43,8 +43,8 @@
     "allowed_current_wording": "Tier-A1 supports EDCL activation with the observed-frame local-H0 channel and no-H0 best-fit/profile collapse toward zero. The strict no-H0 posterior-tail q95 criterion is not passed: sampled-density no-H0 fails, and fixed-density same-model no-H0 remains a near-threshold failure. The current result is mechanism-level evidence, not a completed Hubble-tension resolution.",
     "not_allowed_as_current_Tier_A1_claim": "EDCL resolves the Hubble tension or passes the strict no-H0 q95 posterior-tail threshold.",
     "next_required_validations": [
-      "exact per-likelihood chi2 decomposition",
-      "likelihood ablations",
+      "exact per-likelihood chi2 decomposition where not already chain-audited",
+      "broader likelihood-sector and fair-baseline ablations beyond the archived BAO/SN checkpoint diagnostics",
       "kernel/prior/local-anchor robustness scans",
       "fair baselines",
       "Tier-A2 Planck validation",

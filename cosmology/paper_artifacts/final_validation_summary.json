@@ -54,7 +54,6 @@
     "alpha_R": "0.0147 \u00b1 0.0142",
     "alpha_R_mean": 0.0147,
     "alpha_R_sigma": 0.0142,
-    "alpha_R_95upper": 0.049694743549999996,
     "configured_collapse_pass_threshold_q95": 0.03,
     "configured_collapse_status": "FAIL_threshold_not_met",
     "chi2_best": 1416.2775,
@@ -62,7 +61,8 @@
     "original_compact_weighted_q95": 0.04392733,
     "sampled_density_weighted_q95": 0.047027602,
     "fixed_density_weighted_q95": 0.034149371,
-    "same_model_p1p2_fixed_density_weighted_q95": 0.033860544
+    "same_model_p1p2_fixed_density_weighted_q95": 0.033860544,
+    "legacy_original_compact_unweighted_row_q95_note": "Legacy unweighted row q95 from the original compact chain; not the current weighted posterior q95 gate value."
   },
   "collapse_threshold_note": "The no-H0 best-fit/profile result collapses toward zero, but weighted posterior-tail q95 diagnostics remain above the configured q95<=0.03 threshold: sampled-density 0.0470, fixed-density 0.0341, and same-model P1/P2 fixed-density 0.033860544. This supports profile-level collapse/collapse tendency, not a posterior-tail threshold pass.",
   "best_fit_accounting": {
@@ -83,7 +83,7 @@
   },
   "next_required_validations": [
     "workdir-backed provenance for YAML/config/log/environment state",
-    "likelihood ablations",
+    "broader likelihood-sector and fair-baseline ablations beyond the archived BAO/SN checkpoint diagnostics",
     "kernel/prior/local-anchor robustness scans",
     "fair baselines",
     "Tier-A2 Planck validation",

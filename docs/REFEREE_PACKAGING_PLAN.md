@@ -250,7 +250,7 @@ Stronger language requires:
 
 ```text
 workdir-backed provenance
-likelihood ablations
+broader likelihood-sector and fair-baseline ablations beyond the archived BAO/SN checkpoint diagnostics
 kernel/prior/local-anchor robustness scans
 fair baselines
 Tier-A2/Planck validation

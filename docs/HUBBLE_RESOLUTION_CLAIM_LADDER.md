@@ -73,7 +73,7 @@ cosmology/scripts/run_tiera1_lateonly_suite.py
 | Claim level | Evidence required | Current status | Allowed language |
 |---|---|---|---|
 | 1. Mechanism activation | Correct `H0_edcl` observed-frame likelihood; nonzero `alpha_R`; no-H0 control that shifts `alpha_R` toward zero; explicit threshold accounting for the configured no-H0 collapse test; high-z safety; stale direct-H0 EDCL configs ruled out by guard/validator | Current Tier-A1 chain audit supports activation and no-H0 best-fit/profile collapse. The sampled-density no-H0 posterior-tail criterion fails (`q95=0.0470`) and the fixed-density same-model control remains a near-threshold failure (`q95=0.033860544 > 0.03`); corrected runner/guard path is aligned for reproducibility | “Tier-A1 supports a working `H0_obs` calibration-drift mechanism with a no-H0 collapse-tendency control.” |
-| 2. Robust late-time channel | Best-fit component accounting; likelihood ablations; kernel/prior/local-anchor robustness; workdir-backed provenance from corrected runner; configured-threshold no-H0 collapse or a clearly justified revised threshold | Partially complete: best-fit component accounting is chain-verified in `cosmology/results/tierA1_chain_component_audit.json`; ablations, robustness checks, threshold-passing no-H0 collapse, and workdir provenance remain to run/locate | “Robust late-time Hubble-resolution channel.” |
+| 2. Robust late-time channel | Best-fit component accounting; archived BAO/SN checkpoint diagnostics plus broader likelihood-sector/fair-baseline robustness; workdir-backed provenance from corrected runner; configured-threshold no-H0 collapse or a clearly justified revised threshold | Partially complete: best-fit component accounting and BAO/SN diagnostic ablations are archived; broader robustness checks, threshold-passing no-H0 collapse, fair baselines, and workdir provenance remain future/partial | “Robust late-time Hubble-resolution channel.” |
 | 3. Planck-compatible resolution | Planck distance-prior preflight and full Tier-A2 Planck likelihood with no-H0 controls; integrated-distance effects quantified | To run | “Substantially resolves the Hubble tension in the tested Planck+late data combination.” |
 | 4. Strong model-comparison resolution | Fair baselines (`wCDM`, `w0waCDM`, generic calibration offset) plus AIC/BIC/evidence with documented priors, datasets, and nested-sampler provenance | To run | “Favored over specified alternatives under documented priors and datasets.” |
 
@@ -99,7 +99,7 @@ correct H0_edcl observed-frame likelihood
 → best-fit chain component accounting
 → configured-threshold no-H0 collapse or explicitly revised validation criterion
 → workdir-backed provenance for configs/logs/environment
-→ likelihood ablations
+→ archived BAO/SN diagnostics plus broader likelihood-sector/fair-baseline ablations
 → kernel/prior/local-anchor robustness
 → fair baselines
 → Tier-A2 Planck validation

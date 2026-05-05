@@ -197,7 +197,7 @@ Current paper-chain values:
 | `H0_obs` | `73.04 ± 0.95` km/s/Mpc |
 | Delta chi2 vs LCDM | `-1.0627` |
 
-This validates a working `H0_obs` calibration-drift mechanism in Tier-A1 late-only data. It should not be described as a completed Hubble-tension resolution until exact decomposition, checkpointed BAO/SN diagnostic ablations, robustness scans, fair baselines, workdir-backed provenance, and Tier-A2/Planck validations are complete.
+This validates a working `H0_obs` calibration-drift mechanism in Tier-A1 late-only data. It should not be described as a completed Hubble-tension resolution until exact decomposition/provenance, broader likelihood-sector and fair-baseline robustness scans beyond the archived BAO/SN checkpoint diagnostics, workdir-backed provenance, and Tier-A2/Planck validations are complete.
 
 ## Historical note
 

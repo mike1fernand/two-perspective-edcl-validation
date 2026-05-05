@@ -105,7 +105,7 @@ Stronger resolution claims require:
 
 ```text
 exact likelihood decomposition
-likelihood ablations
+broader likelihood-sector/fair-baseline ablations beyond the archived BAO/SN checkpoint diagnostics
 robustness scans
 fair baselines
 workdir-backed provenance
